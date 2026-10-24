@@ -24,7 +24,8 @@ import {
   Workflow,
   FolderInput,
   FolderPlus,
-  FolderTree
+  FolderTree,
+  Boxes
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WorktreeRowOpenInSubMenu } from './WorktreeRowOpenInSubMenu'
@@ -36,6 +37,7 @@ import { useOptionalShortcutLabel } from '@/hooks/useShortcutLabel'
 import type { WorktreeContextMenuModel } from './use-worktree-context-menu-model'
 import { WorktreeStatusMenuItems } from './WorktreeStatusMenuItems'
 import { WorktreeContextMenuOverlays } from './WorktreeContextMenuOverlays'
+import { createWorkspaceContainerOnWorktree } from './WorktreeContainerRows'
 import {
   WORKTREE_CONTEXT_MENU_SCOPE_ATTR,
   getWorktreeParentPickerLabel,
@@ -188,6 +190,13 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
                   'auto.components.sidebar.WorktreeContextMenu.copyWorktreeName',
                   'Copy Worktree Name'
                 )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => void createWorkspaceContainerOnWorktree(worktree.id)}
+                disabled={isDeleting}
+              >
+                <Boxes className="size-3.5" />
+                New Container
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={handleTogglePin} disabled={isDeleting}>

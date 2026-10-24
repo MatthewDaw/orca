@@ -15,6 +15,7 @@ import type { EditorSlice } from './slices/editor'
 import type { StatsSlice } from './slices/stats'
 import type { MemorySlice } from './slices/memory'
 import type { WorkspaceSpaceSlice } from './slices/workspace-space'
+import type { WorkspaceContainersSlice } from './slices/workspace-containers'
 import type {
   ClaudeUsageSlice,
   CodexUsageSlice,
@@ -67,6 +68,7 @@ export type AppState = RepoSlice &
   StatsSlice &
   MemorySlice &
   WorkspaceSpaceSlice &
+  WorkspaceContainersSlice &
   ClaudeUsageSlice &
   CodexUsageSlice &
   OpenCodeUsageSlice &

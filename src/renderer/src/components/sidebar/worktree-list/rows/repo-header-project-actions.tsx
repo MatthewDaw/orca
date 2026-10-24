@@ -1,5 +1,6 @@
 import React from 'react'
 import {
+  Boxes,
   CircleX,
   Ellipsis,
   Eye,
@@ -24,6 +25,8 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { useAppStore } from '@/store'
+import { createWorkspaceContainerOnWorktree } from '../../WorktreeContainerRows'
 import { translate } from '@/i18n/i18n'
 import { getRepositoryIconSectionId } from '@/components/settings/repository-settings-targets'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
@@ -186,6 +189,9 @@ export function RepoHeaderCreateWorkspaceButton({
   createState: ReturnType<typeof getRepoHeaderCreateState> | null
   onCreateForRepo: (projectId: string) => void
 }): React.JSX.Element {
+  const mainWorktreeId = useAppStore(
+    (state) => state.worktreesByRepo[repo.id]?.find((w) => w.isMainWorktree)?.id ?? null
+  )
   const fallbackLabel = translate(
     'auto.components.sidebar.WorktreeList.bb85cd86ba',
     'Create workspace for {{value0}}',
@@ -219,23 +225,39 @@ export function RepoHeaderCreateWorkspaceButton({
             </Button>
           </span>
         ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            className={REPO_HEADER_ACTION_BUTTON_CLASS}
-            data-repo-header-action=""
-            aria-label={createState?.ariaLabel ?? fallbackLabel}
-            onKeyDown={stopRepoHeaderKeyboardToggle}
-            onPointerDown={handleRepoHeaderActionPointerDown}
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onCreateForRepo(repo.id)
-            }}
-          >
-            <Plus className="size-3" />
-          </Button>
+          <div className="inline-flex" onClick={(event) => event.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className={REPO_HEADER_ACTION_BUTTON_CLASS}
+                  data-repo-header-action=""
+                  aria-label={createState?.ariaLabel ?? fallbackLabel}
+                  onKeyDown={stopRepoHeaderKeyboardToggle}
+                  onPointerDown={handleRepoHeaderActionPointerDown}
+                >
+                  <Plus className="size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onSelect={() => onCreateForRepo(repo.id)}>
+                  <Plus className="size-3.5" />
+                  New Worktree
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!mainWorktreeId}
+                  onSelect={() =>
+                    mainWorktreeId && void createWorkspaceContainerOnWorktree(mainWorktreeId)
+                  }
+                >
+                  <Boxes className="size-3.5" />
+                  New Container in Main
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
       </TooltipTrigger>
       <TooltipContent side="bottom" sideOffset={6}>

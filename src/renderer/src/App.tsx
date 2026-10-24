@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from 'react'
+import { useAppStore } from './store'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConfirmationDialogProvider } from './components/confirmation-dialog'
@@ -56,6 +57,9 @@ function App(): React.JSX.Element {
   useGlobalKeybindings({ layout, floatingWorkspace })
   // Why App, not store creation: the Space window mirrors this store's selection but owns none.
   useEffect(() => installActiveWorktreeRemovalSuccessor(), [])
+  useEffect(() => {
+    void useAppStore.getState().loadWorkspaceContainers()
+  }, [])
 
   // Why: the same vars are set inline on .app-layout below, but portaled surfaces
   // (sheets, dialogs) mount outside it and would otherwise fall back to 0px and

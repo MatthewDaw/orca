@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { AutoRenameFailedDialog } from './AutoRenameFailedDialog'
 import WorktreeContextMenu from './WorktreeContextMenu'
 import { useIsSleepingWorktree } from './use-worktree-sleep-state'
+import { WorktreeContainerRows } from './WorktreeContainerRows'
 import { WorktreeCardParentContent } from './worktree-card-parent-content'
 import { buildWorktreeCardPresentation } from './worktree-card-presentation'
 import type { WorktreeCardController } from './use-worktree-card-controller'
@@ -119,6 +120,8 @@ export function WorktreeCardSurface({ card }: { card: WorktreeCardController }):
           {lineageChildren}
         </div>
       ) : null}
+
+      {affiliateListMode ? null : <WorktreeContainerRows worktreeId={worktree.id} />}
     </div>
   )
 
