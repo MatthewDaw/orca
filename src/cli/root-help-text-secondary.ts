@@ -57,6 +57,8 @@ export const ROOT_HELP_TEXT_SECONDARY = [
   '  orca worktree rm --worktree <selector> [--force] [--run-hooks] [--allow-failed-archive-hook] [--json]',
   '  orca worktree ps [--limit <n>] [--json]',
   '  orca ports [--worktree <selector>] [--all] [--json]',
+  '  orca container list [--json]',
+  '  orca container context [--name <container>] [--json]',
   '  orca file open <path> [--line <n> [--column <n>]] [--worktree <selector>] [--focus] [--json]',
   '  orca file diff <path> [--staged] [--worktree <selector>] [--focus] [--json]',
   '  orca file open-changed [--mode edit|diff|both] [--worktree <selector>] [--focus] [--json]',

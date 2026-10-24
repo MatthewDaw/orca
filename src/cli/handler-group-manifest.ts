@@ -291,5 +291,10 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     name: 'ports',
     keys: ['ports'],
     load: async () => (await import('./handlers/ports.js')).PORTS_HANDLERS
+  },
+  {
+    name: 'container',
+    keys: ['container list', 'container context'],
+    load: async () => (await import('./handlers/container.js')).CONTAINER_HANDLERS
   }
 ]

@@ -6,6 +6,7 @@ import {
 } from '../../runtime/agent-session-create-operation'
 import { callRuntimeRpc } from '../../runtime/runtime-rpc-client'
 import { toRuntimeTerminalWorktreeSelector } from '../../runtime/runtime-worktree-selector'
+import { resolveContainerSpawnEnv } from '../../store/workspace-container-spawn-env'
 
 type PtyConnectOptions = Parameters<PtyTransport['connect']>[0]
 const modelLaunchOperations = new WeakMap<IpcPtyTransportOptions, AgentSessionCreateOperation>()
@@ -92,6 +93,8 @@ export async function spawnIpcPty(
     telemetry,
     agentLaunch
   } = transportOptions
+  const containerEnv = connectionId ? {} : await resolveContainerSpawnEnv(worktreeId, tabId)
+  const spawnEnv = connectOptions.env ?? env
   const resumesAgent = Boolean(connectOptions.resumeProviderSession ?? resumeProviderSession)
   const spawnIntent =
     resumesAgent && !admittedSessionId ? connectOptions.resumeSpawnIntent : undefined
@@ -101,7 +104,7 @@ export async function spawnIpcPty(
     cols: connectOptions.cols ?? 80,
     rows: connectOptions.rows ?? 24,
     cwd,
-    env: connectOptions.env ?? env,
+    env: Object.keys(containerEnv).length > 0 ? { ...spawnEnv, ...containerEnv } : spawnEnv,
     ...((connectOptions.envToDelete ?? envToDelete)
       ? { envToDelete: connectOptions.envToDelete ?? envToDelete }
       : {}),

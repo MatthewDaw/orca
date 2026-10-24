@@ -84,6 +84,8 @@ export const ROOT_HELP_TEXT_PRIMARY = [
   '  worktree rm               Remove a worktree from Orca and git',
   '  worktree ps               Show a compact orchestration summary across worktrees',
   '  ports                     List the listening ports Orca detected for a workspace',
+  '  container list            List Orca containers',
+  '  container context         Print a container context page (focus and connections)',
   '',
   'Agents:',
   '  agent launch              Start an agent in a worktree, as a chat or terminal per your settings',
