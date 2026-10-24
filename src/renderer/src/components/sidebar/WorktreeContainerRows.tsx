@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Boxes, Plus, Trash2 } from 'lucide-react'
+import { Boxes, Layers, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store'
 import { ImeInput } from '@/lib/ime-text-field'
@@ -47,8 +47,17 @@ function ContainerRow({
   const [renaming, setRenaming] = useState(false)
   const [draftName, setDraftName] = useState(container.name)
   const setActive = useAppStore((s) => s.setActiveWorkspaceContainer)
+  const activateTab = useAppStore((s) => s.activateTab)
   const update = useAppStore((s) => s.updateWorkspaceContainer)
   const remove = useAppStore((s) => s.removeWorkspaceContainer)
+
+  const selectContainer = (): void => {
+    setActive(container.worktreeId, container.id)
+    const firstTabId = container.tabIds[0]
+    if (firstTabId) {
+      activateTab(firstTabId)
+    }
+  }
 
   const commitRename = (): void => {
     setRenaming(false)
@@ -73,10 +82,10 @@ function ContainerRow({
               activeContainerId === container.id && 'bg-accent text-foreground'
             )}
             style={{ paddingLeft: 8 + depth * 12 }}
-            onClick={() => setActive(container.worktreeId, container.id)}
+            onClick={selectContainer}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
-                setActive(container.worktreeId, container.id)
+                selectContainer()
               }
             }}
             onDoubleClick={() => {
@@ -143,6 +152,7 @@ export function WorktreeContainerRows({
 }): React.JSX.Element | null {
   const containers = useAppStore((s) => s.workspaceContainers ?? NO_CONTAINERS)
   const activeContainerId = useAppStore((s) => s.activeContainerIdByWorktree?.[worktreeId] ?? null)
+  const setActive = useAppStore((s) => s.setActiveWorkspaceContainer)
   const tree = useMemo(
     () => buildWorkspaceContainerTree(containers, worktreeId),
     [containers, worktreeId]
@@ -156,6 +166,25 @@ export function WorktreeContainerRows({
       data-worktree-container-rows=""
       data-worktree-native-context-menu=""
     >
+      <div
+        role="button"
+        tabIndex={0}
+        aria-current={activeContainerId === null ? 'true' : undefined}
+        className={cn(
+          'flex items-center gap-1.5 rounded-md py-1 pl-2 pr-1.5 text-xs text-muted-foreground',
+          'hover:bg-accent/60 hover:text-foreground',
+          activeContainerId === null && 'bg-accent text-foreground'
+        )}
+        onClick={() => setActive(worktreeId, null)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            setActive(worktreeId, null)
+          }
+        }}
+      >
+        <Layers className="size-3 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">All tabs</span>
+      </div>
       {tree.map((node) => (
         <ContainerRow
           key={node.container.id}

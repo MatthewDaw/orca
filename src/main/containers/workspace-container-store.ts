@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promise
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
+  assignTabsToContainer,
   createContainer,
   removeContainer,
   removeTabFromContainers,
@@ -44,6 +45,10 @@ export class WorkspaceContainerStore {
 
   async update(id: string, patch: WorkspaceContainerPatch): Promise<WorkspaceContainerCatalog> {
     return this.mutate((catalog) => updateContainer(catalog, id, patch, Date.now()))
+  }
+
+  async assignTabs(id: string, tabIds: string[]): Promise<WorkspaceContainerCatalog> {
+    return this.mutate((catalog) => assignTabsToContainer(catalog, id, tabIds, Date.now()))
   }
 
   async remove(id: string): Promise<WorkspaceContainerCatalog> {

@@ -11,6 +11,8 @@ export const workspaceContainersApi = {
     ipcRenderer.invoke('workspaceContainers:create', input),
   update: (id: string, patch: WorkspaceContainerPatch) =>
     ipcRenderer.invoke('workspaceContainers:update', id, patch),
+  assignTabs: (id: string, tabIds: string[]) =>
+    ipcRenderer.invoke('workspaceContainers:assignTabs', id, tabIds),
   remove: (id: string) => ipcRenderer.invoke('workspaceContainers:remove', id),
   releaseTab: (tabId: string) => ipcRenderer.invoke('workspaceContainers:releaseTab', tabId),
   getContextPagePath: (id: string) =>

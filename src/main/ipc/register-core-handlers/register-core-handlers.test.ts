@@ -66,6 +66,7 @@ const {
   registerSkillsHandlersMock,
   registerSkillDeleteIpcHandlersMock,
   registerWorkspaceSpaceHandlersMock,
+  registerWorkspaceContainerHandlersMock,
   registerWorkspacePortHandlersMock,
   registerLocalhostWorktreeLabelHandlersMock,
   registerNativeChatHandlersMock,
@@ -137,6 +138,7 @@ const {
   registerSkillsHandlersMock: vi.fn(),
   registerSkillDeleteIpcHandlersMock: vi.fn(),
   registerWorkspaceSpaceHandlersMock: vi.fn(),
+  registerWorkspaceContainerHandlersMock: vi.fn(),
   registerWorkspacePortHandlersMock: vi.fn(),
   registerLocalhostWorktreeLabelHandlersMock: vi.fn(),
   registerNativeChatHandlersMock: vi.fn(),
@@ -249,6 +251,10 @@ vi.mock('../skill-delete/handlers', () => ({
 
 vi.mock('../workspace-space', () => ({
   registerWorkspaceSpaceHandlers: registerWorkspaceSpaceHandlersMock
+}))
+
+vi.mock('../workspace-containers', () => ({
+  registerWorkspaceContainerHandlers: registerWorkspaceContainerHandlersMock
 }))
 
 vi.mock('../workspace-ports', () => ({
@@ -505,6 +511,7 @@ describe('registerCoreHandlers', () => {
     registerSkillsHandlersMock.mockReset()
     registerSkillDeleteIpcHandlersMock.mockReset()
     registerWorkspaceSpaceHandlersMock.mockReset()
+    registerWorkspaceContainerHandlersMock.mockReset()
     registerWorkspacePortHandlersMock.mockReset()
     registerLocalhostWorktreeLabelHandlersMock.mockReset()
     registerNativeChatHandlersMock.mockReset()

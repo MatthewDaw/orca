@@ -81,9 +81,6 @@ export const createWorkspaceContainersSlice: StateCreator<
       await api.releaseTab(tabId)
       return
     }
-    const target = get().workspaceContainers.find((c) => c.id === containerId)
-    if (target && !target.tabIds.includes(tabId)) {
-      await api.update(containerId, { tabIds: [...target.tabIds, tabId] })
-    }
+    await api.assignTabs(containerId, [tabId])
   }
 })

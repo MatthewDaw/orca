@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  assignTabsToContainer,
   createContainer,
   removeContainer,
   removeTabFromContainers,
@@ -42,6 +43,15 @@ describe('workspace container catalog', () => {
   it('moves a tab out of its previous container when another claims it', () => {
     let catalog = updateContainer(seed(), 'a', { tabIds: ['t1', 't2'] }, 5)
     catalog = updateContainer(catalog, 'b', { tabIds: ['t2'] }, 6)
+    const byId = Object.fromEntries(catalog.containers.map((c) => [c.id, c.tabIds]))
+    expect(byId.a).toEqual(['t1'])
+    expect(byId.b).toEqual(['t2'])
+  })
+
+  it('appends tabs without dropping existing ones and steals from other containers', () => {
+    let catalog = assignTabsToContainer(seed(), 'a', ['t1'], 5)
+    catalog = assignTabsToContainer(catalog, 'a', ['t2'], 6)
+    catalog = assignTabsToContainer(catalog, 'b', ['t2'], 7)
     const byId = Object.fromEntries(catalog.containers.map((c) => [c.id, c.tabIds]))
     expect(byId.a).toEqual(['t1'])
     expect(byId.b).toEqual(['t2'])

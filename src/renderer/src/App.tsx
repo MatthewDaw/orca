@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { useAppStore } from './store'
+import { installWorkspaceContainerTabSync } from './store/workspace-container-tab-sync'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConfirmationDialogProvider } from './components/confirmation-dialog'
@@ -59,6 +60,7 @@ function App(): React.JSX.Element {
   useEffect(() => installActiveWorktreeRemovalSuccessor(), [])
   useEffect(() => {
     void useAppStore.getState().loadWorkspaceContainers()
+    return installWorkspaceContainerTabSync()
   }, [])
 
   // Why: the same vars are set inline on .app-layout below, but portaled surfaces

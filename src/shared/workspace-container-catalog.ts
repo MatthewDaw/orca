@@ -63,6 +63,19 @@ export function updateContainer(
   return { ...catalog, containers }
 }
 
+export function assignTabsToContainer(
+  catalog: WorkspaceContainerCatalog,
+  id: string,
+  tabIds: readonly string[],
+  now: number
+): WorkspaceContainerCatalog {
+  const target = catalog.containers.find((c) => c.id === id)
+  if (!target) {
+    return catalog
+  }
+  return updateContainer(catalog, id, { tabIds: [...target.tabIds, ...tabIds] }, now)
+}
+
 export function removeContainer(
   catalog: WorkspaceContainerCatalog,
   id: string

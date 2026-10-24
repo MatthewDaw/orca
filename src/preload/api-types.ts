@@ -76,6 +76,7 @@ export type WorkspaceContainersApi = {
   list: () => Promise<WorkspaceContainerCatalog>
   create: (input: WorkspaceContainerCreateInput) => Promise<WorkspaceContainer>
   update: (id: string, patch: WorkspaceContainerPatch) => Promise<WorkspaceContainerCatalog>
+  assignTabs: (id: string, tabIds: string[]) => Promise<WorkspaceContainerCatalog>
   remove: (id: string) => Promise<WorkspaceContainerCatalog>
   releaseTab: (tabId: string) => Promise<WorkspaceContainerCatalog>
   getContextPagePath: (id: string) => Promise<string>

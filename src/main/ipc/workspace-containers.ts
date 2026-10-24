@@ -23,6 +23,7 @@ export function registerWorkspaceContainerHandlers(
     'workspaceContainers:create',
     'workspaceContainers:update',
     'workspaceContainers:remove',
+    'workspaceContainers:assignTabs',
     'workspaceContainers:releaseTab',
     'workspaceContainers:getContextPagePath'
   ]) {
@@ -42,6 +43,9 @@ export function registerWorkspaceContainerHandlers(
     'workspaceContainers:update',
     async (_event, id: string, patch: WorkspaceContainerPatch) =>
       broadcast(await store.update(id, patch))
+  )
+  ipcMain.handle('workspaceContainers:assignTabs', async (_event, id: string, tabIds: string[]) =>
+    broadcast(await store.assignTabs(id, tabIds))
   )
   ipcMain.handle('workspaceContainers:remove', async (_event, id: string) =>
     broadcast(await store.remove(id))
