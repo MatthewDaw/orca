@@ -65,6 +65,22 @@ import type { UiCommandEventApi } from './api/ui-command-event-api'
 import type { UiWindowApi } from './api/ui-window-api'
 import type { UpdaterApi } from './api/updater-api'
 import type { WorkspaceCleanupApi, WorkspaceSpaceApi } from './api/workspace-cleanup-api'
+import type {
+  WorkspaceContainer,
+  WorkspaceContainerCatalog,
+  WorkspaceContainerCreateInput,
+  WorkspaceContainerPatch
+} from '../shared/workspace-container-types'
+
+export type WorkspaceContainersApi = {
+  list: () => Promise<WorkspaceContainerCatalog>
+  create: (input: WorkspaceContainerCreateInput) => Promise<WorkspaceContainer>
+  update: (id: string, patch: WorkspaceContainerPatch) => Promise<WorkspaceContainerCatalog>
+  remove: (id: string) => Promise<WorkspaceContainerCatalog>
+  releaseTab: (tabId: string) => Promise<WorkspaceContainerCatalog>
+  getContextPagePath: (id: string) => Promise<string>
+  onChanged: (callback: (catalog: WorkspaceContainerCatalog) => void) => () => void
+}
 import type { LocalhostWorktreeLabelsApi, WorkspacePortsApi } from './api/workspace-port-api'
 import type { WorkspaceSessionApi } from './api/workspace-session-api'
 import type { FolderWorkspacesApi, SparsePresetsApi, WorktreeApi } from './api/worktree-api'
@@ -85,6 +101,7 @@ export type PreloadApi = {
   worktrees: WorktreeApi
   workspaceCleanup: WorkspaceCleanupApi
   workspaceSpace: WorkspaceSpaceApi
+  workspaceContainers: WorkspaceContainersApi
   workspacePorts: WorkspacePortsApi
   pty: PtyApi
   feedback: FeedbackApi
