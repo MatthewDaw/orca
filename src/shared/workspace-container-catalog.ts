@@ -239,6 +239,10 @@ export function renderContainerContextPage(
   lines.push(`Container id: \`${container.id}\``, '')
   lines.push('## Main focus', '', container.focus.trim() || '_Not set._', '')
   lines.push('## Code scope', '')
+  lines.push(
+    'To change your scope run `orca container scope --set "<directories or modules>"`. Never record it in AGENTS.md or CLAUDE.md: every container on this worktree shares those files.',
+    ''
+  )
   const scopes = inheritedCodeScopes(catalog, container)
   if (scopes.length === 0) {
     lines.push('_No code scope set._', '')

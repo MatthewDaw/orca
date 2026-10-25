@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { checkAgentBriefUpdate } from '../../shared/workspace-container-brief-policy'
+import {
+  checkAgentBriefUpdate,
+  checkCodeScopeUpdate
+} from '../../shared/workspace-container-brief-policy'
 import {
   assignTabsToContainer,
   createContainer,
@@ -67,6 +70,28 @@ export class WorkspaceContainerStore {
       ...catalog,
       containers: catalog.containers.map((c) =>
         c.id === id ? { ...c, brief: text.trim(), briefAgentUpdatedAt: now, updatedAt: now } : c
+      )
+    }))
+    return { ok: true }
+  }
+
+  async applyAgentCodeScope(
+    id: string,
+    text: string
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const target = (await this.load()).containers.find((c) => c.id === id)
+    if (!target) {
+      return { ok: false, reason: 'Unknown container.' }
+    }
+    const check = checkCodeScopeUpdate(target, text)
+    if (!check.ok) {
+      return check
+    }
+    const now = Date.now()
+    await this.mutate((catalog) => ({
+      ...catalog,
+      containers: catalog.containers.map((c) =>
+        c.id === id ? { ...c, codeScope: text.trim(), updatedAt: now } : c
       )
     }))
     return { ok: true }

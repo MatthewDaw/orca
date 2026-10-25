@@ -6,7 +6,7 @@ import type { WorkspaceContainerStore } from './workspace-container-store'
 
 let watcher: FSWatcher | null = null
 
-type BriefProposal = { containerId: string; text: string }
+type BriefProposal = { containerId: string; text: string; field: 'brief' | 'codeScope' }
 
 function parseProposal(raw: string): BriefProposal | null {
   try {
@@ -19,7 +19,11 @@ function parseProposal(raw: string): BriefProposal | null {
       'text' in value &&
       typeof value.text === 'string'
     ) {
-      return { containerId: value.containerId, text: value.text }
+      return {
+        containerId: value.containerId,
+        text: value.text,
+        field: 'field' in value && value.field === 'codeScope' ? 'codeScope' : 'brief'
+      }
     }
   } catch {
     // Malformed proposals are dropped below.
@@ -40,8 +44,12 @@ async function drainInbox(
     const path = join(directory, file)
     const proposal = parseProposal(await readFile(path, 'utf8').catch(() => ''))
     await rm(path, { force: true })
-    if (proposal && (await store.applyAgentBrief(proposal.containerId, proposal.text)).ok) {
-      applied = true
+    if (proposal) {
+      const result =
+        proposal.field === 'codeScope'
+          ? await store.applyAgentCodeScope(proposal.containerId, proposal.text)
+          : await store.applyAgentBrief(proposal.containerId, proposal.text)
+      applied ||= result.ok
     }
   }
   if (applied) {

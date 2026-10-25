@@ -39,6 +39,22 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
     ]
   },
   {
+    path: ['container', 'scope'],
+    summary:
+      'Show or set the code scope for this container (the code its agent should stay within)',
+    usage: 'orca container scope [--set <text>] [--container <container>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'set', 'container'],
+    notes: [
+      "This is how to record a container's intended code scope. Never write it into AGENTS.md or CLAUDE.md: those files are shared by every container on the worktree, so the scope would leak into other agents' work.",
+      "Nested containers inherit their parents' scope automatically. --set replaces the whole text (max 1000 characters); list directories or modules, not explanations.",
+      "Without --container, uses this terminal's container (ORCA_CONTAINER_ID)."
+    ],
+    examples: [
+      'orca container scope',
+      'orca container scope --set "src/sports_analysis/court_mapping/, src/sports_analysis/models/, tests/court_mapping/"'
+    ]
+  },
+  {
     path: ['container', 'brief'],
     summary: "Show or replace this container's shared brief for its nested containers",
     usage: 'orca container brief [--set <text>] [--container <container>] [--json]',

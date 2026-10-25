@@ -5,7 +5,9 @@ import { join } from 'node:path'
 import type { WorkspaceContainerCatalog } from '../../shared/workspace-container-types'
 import {
   BRIEF_MAX_CHARS,
-  checkAgentBriefUpdate
+  checkAgentBriefUpdate,
+  checkCodeScopeUpdate,
+  CODE_SCOPE_MAX_CHARS
 } from '../../shared/workspace-container-brief-policy'
 import type { RuntimeTerminalListResult } from '../../shared/runtime-terminal-contracts'
 import {
@@ -129,7 +131,10 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
   }
 }
 
-async function showOrSetBrief(ctx: HandlerContext): Promise<void> {
+async function showOrSetContainerText(
+  ctx: HandlerContext,
+  field: 'brief' | 'codeScope'
+): Promise<void> {
   const catalog = await readCatalog()
   const ref = getOptionalStringFlag(ctx.flags, 'container') ?? process.env.ORCA_CONTAINER_ID
   const resolved = ref ? resolveContainerRef(catalog, ref) : null
@@ -140,15 +145,20 @@ async function showOrSetBrief(ctx: HandlerContext): Promise<void> {
     )
   }
   const container = resolved.container
+  const label = field === 'brief' ? 'brief' : 'scope'
+  const limit = field === 'brief' ? BRIEF_MAX_CHARS : CODE_SCOPE_MAX_CHARS
   const text = getOptionalStringFlag(ctx.flags, 'set')
   if (text === undefined) {
-    const brief = (container.brief ?? '').trim()
+    const current = (container[field] ?? '').trim()
     console.log(
-      brief ? `${brief}\n\n(${brief.length}/${BRIEF_MAX_CHARS} characters)` : '_No brief set._'
+      current ? `${current}\n\n(${current.length}/${limit} characters)` : `_No ${label} set._`
     )
     return
   }
-  const check = checkAgentBriefUpdate(container, text, Date.now())
+  const check =
+    field === 'brief'
+      ? checkAgentBriefUpdate(container, text, Date.now())
+      : checkCodeScopeUpdate(container, text)
   if (!check.ok) {
     throw new RuntimeClientError('invalid_argument', check.reason)
   }
@@ -156,10 +166,10 @@ async function showOrSetBrief(ctx: HandlerContext): Promise<void> {
   await mkdir(inbox, { recursive: true })
   await writeFile(
     join(inbox, `${randomUUID()}.json`),
-    JSON.stringify({ containerId: container.id, text })
+    JSON.stringify({ containerId: container.id, text, field })
   )
   console.log(
-    `Brief submitted for ${describeContainerPath(catalog, container)}; nested containers pick it up on their next read of \`orca container context\`.`
+    `The ${label} for ${describeContainerPath(catalog, container)} was submitted and Orca will apply it within a moment.`
   )
 }
 
@@ -167,5 +177,6 @@ export const CONTAINER_HANDLERS: Record<string, CommandHandler> = {
   'container list': listContainers,
   'container context': printContext,
   'container message': sendContainerMessage,
-  'container brief': showOrSetBrief
+  'container brief': (ctx) => showOrSetContainerText(ctx, 'brief'),
+  'container scope': (ctx) => showOrSetContainerText(ctx, 'codeScope')
 }

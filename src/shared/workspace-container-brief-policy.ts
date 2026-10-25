@@ -6,6 +6,27 @@ import type { WorkspaceContainer } from './workspace-container-types'
 export const BRIEF_MAX_CHARS = 2000
 export const BRIEF_AGENT_COOLDOWN_MS = 60 * 60 * 1000
 
+// A scope names where an agent works (paths, modules), so it stays short. Setting one is
+// user-directed, so unlike a brief it has no cooldown.
+export const CODE_SCOPE_MAX_CHARS = 1000
+
+export function checkCodeScopeUpdate(
+  container: Pick<WorkspaceContainer, 'codeScope'>,
+  text: string
+): BriefUpdateCheck {
+  const length = text.trim().length
+  if (length > CODE_SCOPE_MAX_CHARS) {
+    return {
+      ok: false,
+      reason: `The scope is ${length} characters; the limit is ${CODE_SCOPE_MAX_CHARS}. List directories or modules, not files or explanations.`
+    }
+  }
+  if (text.trim() === (container.codeScope ?? '').trim()) {
+    return { ok: false, reason: 'The scope is unchanged.' }
+  }
+  return { ok: true }
+}
+
 export type BriefUpdateCheck = { ok: true } | { ok: false; reason: string }
 
 export function checkAgentBriefUpdate(
