@@ -46,10 +46,12 @@ export function ContainerContextEditor({
 }): React.JSX.Element {
   const [name, setName] = useState(container.name)
   const [focus, setFocus] = useState(container.focus)
+  const [codeScope, setCodeScope] = useState(container.codeScope ?? '')
   useEffect(() => {
     setName(container.name)
     setFocus(container.focus)
-  }, [container.id, container.name, container.focus])
+    setCodeScope(container.codeScope ?? '')
+  }, [container.id, container.name, container.focus, container.codeScope])
 
   const byId = new Map(containers.map((c) => [c.id, c]))
   const blockedParents = collectContainerDescendantIds(containers, container.id).add(container.id)
@@ -113,6 +115,17 @@ export function ContainerContextEditor({
           value={focus}
           onChange={(event) => setFocus(event.target.value)}
           onBlur={() => focus !== container.focus && onPatch({ focus })}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className={FIELD_LABEL}>Code scope</span>
+        <Textarea
+          rows={3}
+          placeholder="Paths or modules this agent works in, e.g. src/api/** — inherited by nested containers"
+          value={codeScope}
+          onChange={(event) => setCodeScope(event.target.value)}
+          onBlur={() => codeScope !== (container.codeScope ?? '') && onPatch({ codeScope })}
         />
       </label>
 

@@ -40,3 +40,39 @@ export function planWorkspaceContainerTabSync(
   }
   return { assignments, releasedTabIds }
 }
+
+export type WorkspaceContainerMetadataUpdate = {
+  containerId: string
+  terminalTabIds: string[]
+  worktreeLabel: string
+}
+
+// The CLI routes messages by worktree label and live terminals, neither of which it can see in
+// the catalog, so the renderer mirrors them onto each container whenever they drift.
+export function planWorkspaceContainerMetadataSync(
+  containers: readonly WorkspaceContainer[],
+  tabsByWorktree: Readonly<
+    Record<string, readonly { id: string; contentType: string; entityId: string }[]>
+  >,
+  worktreeLabelById: ReadonlyMap<string, string>
+): WorkspaceContainerMetadataUpdate[] {
+  const updates: WorkspaceContainerMetadataUpdate[] = []
+  for (const container of containers) {
+    const owned = new Set(container.tabIds)
+    const terminalTabIds = (tabsByWorktree[container.worktreeId] ?? [])
+      .filter((tab) => tab.contentType === 'terminal' && owned.has(tab.id))
+      .map((tab) => tab.entityId)
+    const worktreeLabel = worktreeLabelById.get(container.worktreeId) ?? container.worktreeLabel
+    const current = container.terminalTabIds ?? []
+    const same =
+      current.length === terminalTabIds.length && current.every((id, i) => id === terminalTabIds[i])
+    if (!same || worktreeLabel !== container.worktreeLabel) {
+      updates.push({
+        containerId: container.id,
+        terminalTabIds,
+        worktreeLabel: worktreeLabel ?? container.worktreeId
+      })
+    }
+  }
+  return updates
+}

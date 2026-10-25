@@ -294,7 +294,7 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
   },
   {
     name: 'container',
-    keys: ['container list', 'container context'],
+    keys: ['container list', 'container context', 'container message'],
     load: async () => (await import('./handlers/container.js')).CONTAINER_HANDLERS
   }
 ]

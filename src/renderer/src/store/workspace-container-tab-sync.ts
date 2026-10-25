@@ -1,5 +1,8 @@
 import type { Tab } from '../../../shared/tab-types'
-import { planWorkspaceContainerTabSync } from './workspace-container-tab-sync-plan'
+import {
+  planWorkspaceContainerMetadataSync,
+  planWorkspaceContainerTabSync
+} from './workspace-container-tab-sync-plan'
 import { useAppStore } from '.'
 
 function collectTabIds(tabsByWorktree: Readonly<Record<string, Tab[]>>): Map<string, Set<string>> {
@@ -11,11 +14,56 @@ function collectTabIds(tabsByWorktree: Readonly<Record<string, Tab[]>>): Map<str
   )
 }
 
+function installWorkspaceContainerMetadataSync(): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const flush = (): void => {
+    timer = null
+    const state = useAppStore.getState()
+    const api = window.api?.workspaceContainers
+    if (!api || !state.workspaceContainersLoaded) {
+      return
+    }
+    const labels = new Map<string, string>()
+    for (const worktrees of Object.values(state.worktreesByRepo ?? {})) {
+      for (const worktree of worktrees) {
+        labels.set(
+          worktree.id,
+          worktree.displayName ||
+            worktree.branch.replace(/^refs\/heads\//, '') ||
+            worktree.path.split('/').pop() ||
+            worktree.id
+        )
+      }
+    }
+    for (const update of planWorkspaceContainerMetadataSync(
+      state.workspaceContainers,
+      state.unifiedTabsByWorktree,
+      labels
+    )) {
+      void api.update(update.containerId, {
+        terminalTabIds: update.terminalTabIds,
+        worktreeLabel: update.worktreeLabel
+      })
+    }
+  }
+  const unsubscribe = useAppStore.subscribe(() => {
+    // Why: store updates are frequent; one trailing pass per burst is enough for routing metadata.
+    timer ??= setTimeout(flush, 300)
+  })
+  return () => {
+    unsubscribe()
+    if (timer) {
+      clearTimeout(timer)
+    }
+  }
+}
+
 export function installWorkspaceContainerTabSync(): () => void {
+  const stopMetadataSync = installWorkspaceContainerMetadataSync()
   let previousTabsRecord = useAppStore.getState().unifiedTabsByWorktree
   let previousIds = collectTabIds(previousTabsRecord)
 
-  return useAppStore.subscribe((state) => {
+  const stopTabSync = useAppStore.subscribe((state) => {
     if (state.unifiedTabsByWorktree === previousTabsRecord) {
       return
     }
@@ -40,4 +88,8 @@ export function installWorkspaceContainerTabSync(): () => void {
       void api.releaseTab(tabId)
     }
   })
+  return () => {
+    stopTabSync()
+    stopMetadataSync()
+  }
 }

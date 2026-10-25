@@ -2,8 +2,15 @@ import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { WorkspaceContainerCatalog } from '../../shared/workspace-container-types'
+import type { RuntimeTerminalListResult } from '../../shared/runtime-terminal-contracts'
+import {
+  describeContainerPath,
+  formatContainerMessage,
+  pickTargetTerminal,
+  resolveContainerRef
+} from '../../shared/workspace-container-routing'
 import type { CommandHandler, HandlerContext } from '../dispatch'
-import { getOptionalStringFlag } from '../flags'
+import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
 import { RuntimeClientError } from '../runtime-client'
 
 const containerDirectory = (): string => join(homedir(), '.orca', 'containers')
@@ -27,7 +34,7 @@ async function listContainers(ctx: HandlerContext): Promise<void> {
     return
   }
   for (const container of containers) {
-    console.log(`${container.name}\t${container.worktreeId}\t${container.tabIds.length} tabs`)
+    console.log(`${describeContainerPath({ version: 1, containers }, container)}\t${container.id}`)
   }
 }
 
@@ -59,7 +66,66 @@ async function printContext(ctx: HandlerContext): Promise<void> {
   console.log(ctx.json ? JSON.stringify({ path: pagePath, page }, null, 2) : page)
 }
 
+async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
+  const catalog = await readCatalog()
+  const toRef = getRequiredStringFlag(ctx.flags, 'to')
+  const target = resolveContainerRef(catalog, toRef)
+  if (!target.container) {
+    const options = target.candidates.map(
+      (c) => `  - ${describeContainerPath(catalog, c)} (id ${c.id})`
+    )
+    throw new RuntimeClientError(
+      target.candidates.length > 0 ? 'invalid_argument' : 'selector_not_found',
+      target.candidates.length > 0
+        ? `"${toRef}" matches several containers; use the full path or id:\n${options.join('\n')}`
+        : `No container matches "${toRef}". Run \`orca container list\` for the current names.`
+    )
+  }
+  const senderRef = getOptionalStringFlag(ctx.flags, 'from') ?? process.env.ORCA_CONTAINER_ID
+  const sender = senderRef ? resolveContainerRef(catalog, senderRef).container : null
+  const listed = await ctx.client.call<RuntimeTerminalListResult>('terminal.list', {
+    worktree: `id:${target.container.worktreeId}`,
+    includeVisualLayouts: false
+  })
+  const terminal = pickTargetTerminal(
+    listed.result.terminals,
+    target.container,
+    getOptionalStringFlag(ctx.flags, 'agent')
+  )
+  const targetPath = describeContainerPath(catalog, target.container)
+  if (!terminal) {
+    throw new RuntimeClientError(
+      'selector_not_found',
+      `"${targetPath}" has no open terminal to receive the message. Open an agent in that container first.`
+    )
+  }
+  const sent = await ctx.client.call<{ send: { accepted: boolean } }>('terminal.send', {
+    terminal: terminal.handle,
+    text: formatContainerMessage(catalog, sender, getRequiredStringFlag(ctx.flags, 'text')),
+    enter: true,
+    interrupt: false,
+    client: { id: 'orca-cli', type: 'desktop' }
+  })
+  if (ctx.json) {
+    console.log(
+      JSON.stringify({
+        to: targetPath,
+        terminal: terminal.handle,
+        accepted: sent.result.send.accepted
+      })
+    )
+  } else {
+    console.log(
+      `Sent to ${targetPath} (${terminal.agentIdentity ?? 'terminal'} ${terminal.handle}).`
+    )
+  }
+  if (!sent.result.send.accepted) {
+    process.exitCode = 1
+  }
+}
+
 export const CONTAINER_HANDLERS: Record<string, CommandHandler> = {
   'container list': listContainers,
-  'container context': printContext
+  'container context': printContext,
+  'container message': sendContainerMessage
 }

@@ -14,6 +14,13 @@ export type WorkspaceContainer = {
   focus: string
   connections: WorkspaceContainerConnection[]
   position: WorkspaceContainerPosition
+  // Code the agent should stay within (paths, globs, modules); inherited by nested containers.
+  codeScope?: string
+  // Terminal tab ids (not unified tab ids) of this container's terminals, kept current by the
+  // renderer so the CLI can find which live terminals belong here.
+  terminalTabIds?: string[]
+  // Display name of the worktree, kept current by the renderer so paths read the way the sidebar does.
+  worktreeLabel?: string
   // Sidebar order among siblings; containers without one sort by creation time.
   sortOrder?: number
   createdAt: number
@@ -43,6 +50,9 @@ export type WorkspaceContainerPatch = Partial<
     | 'connections'
     | 'position'
     | 'sortOrder'
+    | 'codeScope'
+    | 'terminalTabIds'
+    | 'worktreeLabel'
   >
 >
 

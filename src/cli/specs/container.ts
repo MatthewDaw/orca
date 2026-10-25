@@ -20,5 +20,22 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
       'Read this at the start of a session to learn your focus and which other containers you work with.'
     ],
     examples: ['orca container context', 'orca container context --name "API"']
+  },
+  {
+    path: ['container', 'message'],
+    summary: "Send a message to another container's agent",
+    usage:
+      'orca container message --to <container> --text <message> [--agent <name>] [--from <container>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'to', 'text', 'agent', 'from'],
+    notes: [
+      '--to takes a container id, a path such as "AI Analysis/pickleball" or "computer_vision/basketball", or the words of its path. Paths resolve against the live container tree on every call, so renames and re-nesting never break routing; use the new name after a rename.',
+      'The message is typed into the first agent terminal of the target container. --agent picks another by agent name (codex, claude, ...) or terminal title when the container has several.',
+      "The recipient sees who sent it and the command to reply. The sender is this terminal's container (ORCA_CONTAINER_ID); pass --from <container> outside a container terminal.",
+      'An ambiguous name lists the matching containers; retry with the full path or the id.'
+    ],
+    examples: [
+      'orca container message --to "AI Analysis/pickleball" --text "How did you handle the court overlay?"',
+      'orca container message --to computer_vision/basketball --agent codex --text "Please build the shot-arc feature"'
+    ]
   }
 ]

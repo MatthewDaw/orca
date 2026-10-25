@@ -1,3 +1,4 @@
+import { describeContainerPath, inheritedCodeScopes } from './workspace-container-routing'
 import type {
   WorkspaceContainer,
   WorkspaceContainerCatalog,
@@ -228,12 +229,28 @@ export function renderContainerContextPage(
   catalog: WorkspaceContainerCatalog
 ): string {
   const byId = new Map(catalog.containers.map((c) => [c.id, c]))
-  const parent = container.parentContainerId ? byId.get(container.parentContainerId) : undefined
   const lines = [`# ${container.name}`, '']
-  if (parent) {
-    lines.push(`Nested inside: ${parent.name}`, '')
-  }
+  lines.push(`You are in the container **${describeContainerPath(catalog, container)}**.`)
+  lines.push(`Container id: \`${container.id}\``, '')
   lines.push('## Main focus', '', container.focus.trim() || '_Not set._', '')
+  lines.push('## Code scope', '')
+  const scopes = inheritedCodeScopes(catalog, container)
+  if (scopes.length === 0) {
+    lines.push('_No code scope set._', '')
+  } else {
+    lines.push(
+      "Keep your work within this code; treat anything outside it as someone else's area and message that container instead.",
+      ''
+    )
+    for (const { container: owner, scope } of scopes) {
+      lines.push(
+        owner.id === container.id
+          ? `**Your scope:** ${scope}`
+          : `**Inherited from ${describeContainerPath(catalog, owner)}:** ${scope}`,
+        ''
+      )
+    }
+  }
   lines.push('## Connections', '')
   if (container.connections.length === 0) {
     lines.push('_No connections._')
@@ -241,7 +258,25 @@ export function renderContainerContextPage(
   for (const connection of container.connections) {
     const target = byId.get(connection.targetContainerId)
     if (target) {
-      lines.push(`- **${target.name}**: ${connection.description.trim() || '_No details._'}`)
+      lines.push(
+        `- **${describeContainerPath(catalog, target)}**: ${connection.description.trim() || '_No details._'}`
+      )
+    }
+  }
+  lines.push('', '## Messaging other containers', '')
+  lines.push(
+    'Message another container\'s agent with `orca container message --to "<container>" --text "<message>"`.',
+    'Use the path below (e.g. `AI Analysis/pickleball`) or the id; paths follow renames, so re-read this page if a name stops resolving.',
+    'It goes to the first agent in that container; add `--agent <codex|claude|...>` to pick another. The recipient is told how to reply to you.',
+    '',
+    'Containers:'
+  )
+  for (const other of catalog.containers) {
+    if (other.id !== container.id) {
+      const focus = other.focus.trim().split('\n')[0]
+      lines.push(
+        `- ${describeContainerPath(catalog, other)} — id \`${other.id}\`${focus ? ` — ${focus}` : ''}`
+      )
     }
   }
   return `${lines.join('\n')}\n`

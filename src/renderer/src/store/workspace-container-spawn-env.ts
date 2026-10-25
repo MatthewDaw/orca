@@ -42,6 +42,7 @@ export async function resolveContainerSpawnEnv(
   }
   return {
     ORCA_CONTAINER_CONTEXT: await api.getContextPagePath(container.id),
-    ORCA_CONTAINER_NAME: container.name
+    ORCA_CONTAINER_NAME: container.name,
+    ORCA_CONTAINER_ID: container.id
   }
 }

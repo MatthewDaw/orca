@@ -10,6 +10,7 @@ export type WorkspaceContainerBlueprintEntry = {
   worktree: string
   parentId: string | null
   focus: string
+  codeScope?: string
   connections: WorkspaceContainerConnection[]
   position: { x: number; y: number }
 }
@@ -34,6 +35,7 @@ export function buildContainerBlueprint(
         worktree,
         parentId: container.parentContainerId,
         focus: container.focus,
+        ...(container.codeScope?.trim() ? { codeScope: container.codeScope } : {}),
         connections: container.connections,
         position: container.position
       })
@@ -71,6 +73,9 @@ function parseEntry(value: unknown): WorkspaceContainerBlueprintEntry | null {
     worktree: typeof value.worktree === 'string' ? value.worktree : MAIN_WORKTREE_REF,
     parentId: typeof value.parentId === 'string' ? value.parentId : null,
     focus: typeof value.focus === 'string' ? value.focus : '',
+    ...(typeof value.codeScope === 'string' && value.codeScope.trim()
+      ? { codeScope: value.codeScope }
+      : {}),
     connections: Array.isArray(value.connections)
       ? value.connections.map(parseConnection).filter((c) => c !== null)
       : [],
@@ -119,6 +124,7 @@ export function blueprintToContainers(
       parentContainerId: entry.parentId && ids.has(entry.parentId) ? entry.parentId : null,
       tabIds: [],
       focus: entry.focus,
+      ...(entry.codeScope ? { codeScope: entry.codeScope } : {}),
       connections: entry.connections.filter((c) => ids.has(c.targetContainerId)),
       position: entry.position,
       createdAt: now,

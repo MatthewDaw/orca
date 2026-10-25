@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceContainer } from '../../../shared/workspace-container-types'
-import { planWorkspaceContainerTabSync } from './workspace-container-tab-sync-plan'
+import {
+  planWorkspaceContainerMetadataSync,
+  planWorkspaceContainerTabSync
+} from './workspace-container-tab-sync-plan'
 
 function container(id: string, worktreeId: string, tabIds: string[] = []): WorkspaceContainer {
   return {
@@ -68,5 +71,36 @@ describe('planWorkspaceContainerTabSync', () => {
       { wt: 'a' }
     )
     expect(plan.releasedTabIds).toEqual(['t1'])
+  })
+})
+
+describe('planWorkspaceContainerMetadataSync', () => {
+  const tabs = {
+    wt: [
+      { id: 'u1', contentType: 'terminal', entityId: 'term-1' },
+      { id: 'u2', contentType: 'editor', entityId: 'file-1' }
+    ]
+  }
+
+  it('mirrors terminal tab ids and the worktree label onto a container', () => {
+    const updates = planWorkspaceContainerMetadataSync(
+      [container('a', 'wt', ['u1', 'u2'])],
+      tabs,
+      new Map([['wt', 'website']])
+    )
+    expect(updates).toEqual([
+      { containerId: 'a', terminalTabIds: ['term-1'], worktreeLabel: 'website' }
+    ])
+  })
+
+  it('emits nothing once the container is up to date', () => {
+    const current = {
+      ...container('a', 'wt', ['u1']),
+      terminalTabIds: ['term-1'],
+      worktreeLabel: 'website'
+    }
+    expect(
+      planWorkspaceContainerMetadataSync([current], tabs, new Map([['wt', 'website']]))
+    ).toEqual([])
   })
 })

@@ -118,6 +118,23 @@ describe('workspace container catalog', () => {
     expect(catalog.containers.map((c) => c.id)).toEqual(['c'])
   })
 
+  it('shows inherited and own code scope, including for children created later', () => {
+    let catalog = updateContainer(seed(), 'a', { codeScope: 'src/api/**' }, 5)
+    catalog = createContainer(
+      catalog,
+      { worktreeId: 'wt-1', name: 'Docs', parentContainerId: 'a' },
+      'late',
+      6
+    )
+    catalog = updateContainer(catalog, 'late', { codeScope: 'src/api/docs' }, 7)
+    const page = renderContainerContextPage(
+      catalog.containers.find((c) => c.id === 'late')!,
+      catalog
+    )
+    expect(page).toContain('**Inherited from wt-1 › API:** src/api/**')
+    expect(page).toContain('**Your scope:** src/api/docs')
+  })
+
   it('renders focus and connections for agents', () => {
     const catalog = updateContainer(
       seed(),
@@ -131,6 +148,6 @@ describe('workspace container catalog', () => {
     const page = renderContainerContextPage(catalog.containers[0]!, catalog)
     expect(page).toContain('## Main focus')
     expect(page).toContain('Own the REST API')
-    expect(page).toContain('- **Tests**: Ask for test runs')
+    expect(page).toContain('API › Tests**: Ask for test runs')
   })
 })
