@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/context-menu'
 import type { WorkspaceContainer } from '../../../../shared/workspace-container-types'
 import type { Worktree } from '../../../../shared/worktree/types'
+import { depthStripeClass } from './workspace-container-depth-stripes'
 import { createWorkspaceContainerOnWorktree } from './WorktreeContainerRows'
 import {
   buildWorkspaceContainerTree,
@@ -177,9 +178,7 @@ function ContainerCard({
       className={cn(
         depth === 0 && 'ml-1',
         // Why: a parent with children wraps them in its own outlined surface, like worktree lineage.
-        depth === 0 &&
-          node.children.length > 0 &&
-          'rounded-lg border border-border/60 bg-accent/20 p-1'
+        node.children.length > 0 && 'rounded-lg border border-border/60 bg-accent/20 p-1'
       )}
     >
       <ContextMenu>
@@ -223,7 +222,8 @@ function ContainerCard({
               'data-[drop=child]:bg-accent data-[drop=child]:ring-2 data-[drop=child]:ring-ring',
               "data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-1 data-[drop=before]:before:h-0.5 data-[drop=before]:before:rounded data-[drop=before]:before:bg-ring data-[drop=before]:before:content-['']",
               "data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-1 data-[drop=after]:after:h-0.5 data-[drop=after]:after:rounded data-[drop=after]:after:bg-ring data-[drop=after]:after:content-['']",
-              'border-border bg-accent/40',
+              'border-border bg-accent/40 border-l-[3px]',
+              depthStripeClass(depth),
               active ? 'bg-accent text-accent-foreground' : 'worktree-sidebar-card-hover'
             )}
             onClick={select}
