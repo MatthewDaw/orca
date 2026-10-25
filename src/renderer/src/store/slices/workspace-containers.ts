@@ -75,6 +75,34 @@ export const createWorkspaceContainersSlice: StateCreator<
   },
 
   removeWorkspaceContainer: async (id) => {
+    const state = get()
+    const container = state.workspaceContainers.find((c) => c.id === id)
+    // Deleting a container ends the sessions running in it: its tabs close (killing their
+    // terminals) while nested containers are re-parented and keep theirs.
+    const ownedTabIds = new Set(container?.tabIds ?? [])
+    const tabs = (state.unifiedTabsByWorktree[container?.worktreeId ?? ''] ?? []).filter((tab) =>
+      ownedTabIds.has(tab.id)
+    )
+    if (
+      container &&
+      tabs.length > 0 &&
+      typeof window.confirm === 'function' &&
+      !window.confirm(
+        `Delete "${container.name}"? Its ${tabs.length} open tab${tabs.length > 1 ? 's' : ''}, including any agent sessions, will be closed.`
+      )
+    ) {
+      return
+    }
+    if (container && tabs.length > 0) {
+      const { dispatchWorkspaceTabCommand } = await import('@/lib/workspace-tab-commands')
+      for (const tab of tabs) {
+        dispatchWorkspaceTabCommand({
+          type: 'close',
+          target: { kind: 'tab', worktreeId: container.worktreeId, tabId: tab.id },
+          bulk: true
+        })
+      }
+    }
     await window.api.workspaceContainers.remove(id)
   },
 
