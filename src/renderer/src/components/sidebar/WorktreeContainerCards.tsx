@@ -224,7 +224,10 @@ function ContainerCard({
               "data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-1 data-[drop=after]:after:h-0.5 data-[drop=after]:after:rounded data-[drop=after]:after:bg-ring data-[drop=after]:after:content-['']",
               'border-border bg-accent/40 border-l-[3px]',
               depthStripeClass(depth),
-              active ? 'bg-accent text-accent-foreground' : 'worktree-sidebar-card-hover'
+              // Why: the selected container must stand out at a glance, so it gets a full ring and a tinted fill.
+              active
+                ? 'bg-primary/15 text-accent-foreground ring-2 ring-primary'
+                : 'worktree-sidebar-card-hover'
             )}
             onClick={select}
             onKeyDown={(event) => event.key === 'Enter' && select()}
