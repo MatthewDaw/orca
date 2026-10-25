@@ -125,7 +125,9 @@ function isCatalog(value: unknown): value is WorkspaceContainerCatalog {
   return (
     typeof value === 'object' &&
     value !== null &&
-    (value as { version?: unknown }).version === 1 &&
-    Array.isArray((value as { containers?: unknown }).containers)
+    'version' in value &&
+    value.version === 1 &&
+    'containers' in value &&
+    Array.isArray(value.containers)
   )
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { useAppStore } from './store'
 import { installWorkspaceContainerTabSync } from './store/workspace-container-tab-sync'
 import { Toaster } from '@/components/ui/sonner'
@@ -39,6 +39,20 @@ import { useWindowVisibilityEffects } from './app-shell/use-window-visibility-ef
 import { SpaceWindowStatePublisher } from './components/workspace-space/SpaceWindowStatePublisher'
 import { PlainSshTerminalPanels } from './components/plain-ssh-terminal/PlainSshTerminalPanels'
 import { installActiveWorktreeRemovalSuccessor } from './lib/active-worktree-removal-successor'
+
+// Why lazy: React Flow only loads once the graph is first opened.
+const ContainerGraphOverlay = lazy(
+  () => import('./components/container-graph/ContainerGraphOverlay')
+)
+
+function ContainerGraphHost(): React.JSX.Element | null {
+  const open = useAppStore((state) => state.containerGraphOpen ?? false)
+  return open ? (
+    <Suspense fallback={null}>
+      <ContainerGraphOverlay />
+    </Suspense>
+  ) : null
+}
 
 function App(): React.JSX.Element {
   const layout = useAppChromeLayout()
@@ -118,6 +132,7 @@ function App(): React.JSX.Element {
         </ConfirmationDialogProvider>
         <Toaster closeButton toastOptions={{ className: 'font-sans text-sm' }} />
         <PlainSshTerminalPanels />
+        <ContainerGraphHost />
       </TooltipProvider>
       <SkillFreshnessNudge />
       <WorktreeBaseFallbackDialog />

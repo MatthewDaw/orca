@@ -12,6 +12,8 @@ let unsubscribeFromCatalogChanges: (() => void) | null = null
 export type WorkspaceContainersSlice = {
   workspaceContainers: WorkspaceContainer[]
   activeContainerIdByWorktree: Record<string, string | null>
+  containerGraphOpen: boolean
+  setContainerGraphOpen: (open: boolean) => void
   loadWorkspaceContainers: () => Promise<void>
   applyWorkspaceContainerCatalog: (catalog: WorkspaceContainerCatalog) => void
   createWorkspaceContainer: (input: WorkspaceContainerCreateInput) => Promise<WorkspaceContainer>
@@ -29,6 +31,9 @@ export const createWorkspaceContainersSlice: StateCreator<
 > = (set, get) => ({
   workspaceContainers: [],
   activeContainerIdByWorktree: {},
+  containerGraphOpen: false,
+
+  setContainerGraphOpen: (open) => set({ containerGraphOpen: open }),
 
   loadWorkspaceContainers: async () => {
     const api = window.api?.workspaceContainers

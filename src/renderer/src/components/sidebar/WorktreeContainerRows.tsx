@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Boxes, Layers, Plus, Trash2 } from 'lucide-react'
+import { Boxes, Layers, Network, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store'
 import { ImeInput } from '@/lib/ime-text-field'
@@ -153,6 +153,7 @@ export function WorktreeContainerRows({
   const containers = useAppStore((s) => s.workspaceContainers ?? NO_CONTAINERS)
   const activeContainerId = useAppStore((s) => s.activeContainerIdByWorktree?.[worktreeId] ?? null)
   const setActive = useAppStore((s) => s.setActiveWorkspaceContainer)
+  const openGraph = (): void => useAppStore.getState().setContainerGraphOpen(true)
   const tree = useMemo(
     () => buildWorkspaceContainerTree(containers, worktreeId),
     [containers, worktreeId]
@@ -184,6 +185,18 @@ export function WorktreeContainerRows({
       >
         <Layers className="size-3 shrink-0" />
         <span className="min-w-0 flex-1 truncate">All tabs</span>
+        <button
+          type="button"
+          aria-label="Open container graph"
+          title="Open container graph"
+          className="rounded p-0.5 hover:bg-background/60"
+          onClick={(event) => {
+            event.stopPropagation()
+            openGraph()
+          }}
+        >
+          <Network className="size-3" />
+        </button>
       </div>
       {tree.map((node) => (
         <ContainerRow

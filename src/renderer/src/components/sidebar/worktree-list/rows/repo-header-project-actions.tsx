@@ -6,6 +6,7 @@ import {
   Eye,
   FolderInput,
   FolderTree,
+  Network,
   Plus,
   // `Shapes` is lucide-react's own export name; exempted in config/oxlint-anti-slop.json.
   Shapes,
@@ -254,6 +255,13 @@ export function RepoHeaderCreateWorkspaceButton({
                 >
                   <Boxes className="size-3.5" />
                   New Container in Main
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => useAppStore.getState().setContainerGraphOpen(true)}
+                >
+                  <Network className="size-3.5" />
+                  Open Container Graph
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

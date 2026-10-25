@@ -3,7 +3,18 @@ import type { Tab } from '../../../shared/tab-types'
 import type { WorkspaceContainer } from '../../../shared/workspace-container-types'
 import { findContainerForTerminal } from './workspace-container-spawn-env'
 
-const terminalTab = { id: 'u1', entityId: 'term-1', contentType: 'terminal' } as Tab
+const terminalTab: Tab = {
+  id: 'u1',
+  entityId: 'term-1',
+  groupId: 'g1',
+  worktreeId: 'wt',
+  contentType: 'terminal',
+  label: 'Terminal',
+  customLabel: null,
+  color: null,
+  sortOrder: 0,
+  createdAt: 0
+}
 
 function container(id: string, tabIds: string[]): WorkspaceContainer {
   return {
