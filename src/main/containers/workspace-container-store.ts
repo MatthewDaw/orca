@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { checkAgentBriefUpdate } from '../../shared/workspace-container-brief-policy'
 import {
   assignTabsToContainer,
   createContainer,
@@ -46,6 +47,33 @@ export class WorkspaceContainerStore {
 
   async update(id: string, patch: WorkspaceContainerPatch): Promise<WorkspaceContainerCatalog> {
     return this.mutate((catalog) => updateContainer(catalog, id, patch, Date.now()))
+  }
+
+  // Agent-proposed brief rewrite; refused (with the reason) when too large or too soon.
+  async applyAgentBrief(
+    id: string,
+    text: string
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const target = (await this.load()).containers.find((c) => c.id === id)
+    if (!target) {
+      return { ok: false, reason: 'Unknown container.' }
+    }
+    const now = Date.now()
+    const check = checkAgentBriefUpdate(target, text, now)
+    if (!check.ok) {
+      return check
+    }
+    await this.mutate((catalog) => ({
+      ...catalog,
+      containers: catalog.containers.map((c) =>
+        c.id === id ? { ...c, brief: text.trim(), briefAgentUpdatedAt: now, updatedAt: now } : c
+      )
+    }))
+    return { ok: true }
+  }
+
+  getInboxDirectory(): string {
+    return join(this.directory, 'inbox')
   }
 
   async assignTabs(id: string, tabIds: string[]): Promise<WorkspaceContainerCatalog> {

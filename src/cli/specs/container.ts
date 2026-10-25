@@ -37,5 +37,20 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
       'orca container message --to "AI Analysis/pickleball" --text "How did you handle the court overlay?"',
       'orca container message --to computer_vision/basketball --agent codex --text "Please build the shot-arc feature"'
     ]
+  },
+  {
+    path: ['container', 'brief'],
+    summary: "Show or replace this container's shared brief for its nested containers",
+    usage: 'orca container brief [--set <text>] [--container <container>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'set', 'container'],
+    notes: [
+      'The brief is markdown that every container nested under this one must read. Keep it short and slow-changing: only durable decisions and conventions, never task progress.',
+      '--set replaces the whole brief (rewrite and condense; do not append). It is capped at 2000 characters and agent edits are limited to one per hour.',
+      "Without --container, uses this terminal's container (ORCA_CONTAINER_ID)."
+    ],
+    examples: [
+      'orca container brief',
+      'orca container brief --set "Use the repository pattern; mock the clock in tests."'
+    ]
   }
 ]

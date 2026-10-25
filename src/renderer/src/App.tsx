@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { useAppStore } from './store'
+import { installWorkspaceContainerReparentNotify } from './store/workspace-container-reparent-notify'
 import { installWorkspaceContainerTabSync } from './store/workspace-container-tab-sync'
 import { installWorkspaceContainerBlueprintSync } from './store/workspace-container-blueprint-sync'
 import { Toaster } from '@/components/ui/sonner'
@@ -77,9 +78,11 @@ function App(): React.JSX.Element {
     void useAppStore.getState().loadWorkspaceContainers()
     const stopTabSync = installWorkspaceContainerTabSync()
     const stopBlueprintSync = installWorkspaceContainerBlueprintSync()
+    const stopReparentNotify = installWorkspaceContainerReparentNotify()
     return () => {
       stopTabSync()
       stopBlueprintSync()
+      stopReparentNotify()
     }
   }, [])
 

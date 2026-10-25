@@ -18,6 +18,8 @@ export type WorkspaceContainer = {
   codeScope?: string
   // Markdown the container's owner writes for everything nested under it; children must read it.
   brief?: string
+  // When an agent last rewrote the brief, so edits stay rare.
+  briefAgentUpdatedAt?: number
   // Terminal tab ids (not unified tab ids) of this container's terminals, kept current by the
   // renderer so the CLI can find which live terminals belong here.
   terminalTabIds?: string[]

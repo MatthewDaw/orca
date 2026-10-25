@@ -1,7 +1,12 @@
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { WorkspaceContainerCatalog } from '../../shared/workspace-container-types'
+import {
+  BRIEF_MAX_CHARS,
+  checkAgentBriefUpdate
+} from '../../shared/workspace-container-brief-policy'
 import type { RuntimeTerminalListResult } from '../../shared/runtime-terminal-contracts'
 import {
   describeContainerPath,
@@ -124,8 +129,43 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
   }
 }
 
+async function showOrSetBrief(ctx: HandlerContext): Promise<void> {
+  const catalog = await readCatalog()
+  const ref = getOptionalStringFlag(ctx.flags, 'container') ?? process.env.ORCA_CONTAINER_ID
+  const resolved = ref ? resolveContainerRef(catalog, ref) : null
+  if (!resolved?.container) {
+    throw new RuntimeClientError(
+      'selector_not_found',
+      'This terminal is not in a container. Pass --container <container>.'
+    )
+  }
+  const container = resolved.container
+  const text = getOptionalStringFlag(ctx.flags, 'set')
+  if (text === undefined) {
+    const brief = (container.brief ?? '').trim()
+    console.log(
+      brief ? `${brief}\n\n(${brief.length}/${BRIEF_MAX_CHARS} characters)` : '_No brief set._'
+    )
+    return
+  }
+  const check = checkAgentBriefUpdate(container, text, Date.now())
+  if (!check.ok) {
+    throw new RuntimeClientError('invalid_argument', check.reason)
+  }
+  const inbox = join(containerDirectory(), 'inbox')
+  await mkdir(inbox, { recursive: true })
+  await writeFile(
+    join(inbox, `${randomUUID()}.json`),
+    JSON.stringify({ containerId: container.id, text })
+  )
+  console.log(
+    `Brief submitted for ${describeContainerPath(catalog, container)}; nested containers pick it up on their next read of \`orca container context\`.`
+  )
+}
+
 export const CONTAINER_HANDLERS: Record<string, CommandHandler> = {
   'container list': listContainers,
   'container context': printContext,
-  'container message': sendContainerMessage
+  'container message': sendContainerMessage,
+  'container brief': showOrSetBrief
 }

@@ -1,3 +1,4 @@
+import { BRIEF_MAINTENANCE_RULES, BRIEF_MAX_CHARS } from './workspace-container-brief-policy'
 import {
   describeContainerPath,
   inheritedBriefs,
@@ -269,6 +270,12 @@ export function renderContainerContextPage(
       )
     }
   }
+  lines.push('## Maintaining your brief', '')
+  lines.push(
+    `Your brief (shared with every container nested under you) is ${(container.brief ?? '').trim().length}/${BRIEF_MAX_CHARS} characters.`,
+    ...BRIEF_MAINTENANCE_RULES.map((rule) => `- ${rule}`),
+    ''
+  )
   lines.push('## Connections', '')
   if (container.connections.length === 0) {
     lines.push('_No connections._')

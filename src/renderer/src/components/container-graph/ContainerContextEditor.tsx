@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { BRIEF_MAX_CHARS } from '../../../../shared/workspace-container-brief-policy'
 import type {
   WorkspaceContainer,
   WorkspaceContainerConnection,
@@ -132,10 +133,13 @@ export function ContainerContextEditor({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className={FIELD_LABEL}>Brief for nested containers</span>
+        <span className={FIELD_LABEL}>
+          Brief for nested containers ({brief.length}/{BRIEF_MAX_CHARS})
+        </span>
         <Textarea
           rows={6}
           placeholder="Markdown every container nested under this one must read: conventions, decisions, what to avoid…"
+          maxLength={BRIEF_MAX_CHARS}
           value={brief}
           onChange={(event) => setBrief(event.target.value)}
           onBlur={() => brief !== (container.brief ?? '') && onPatch({ brief })}

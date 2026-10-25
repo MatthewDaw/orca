@@ -3,6 +3,7 @@ import type {
   AgentSessionLaunchRequest
 } from '@/lib/agent-session-launch-plan'
 import { useAppStore } from '@/store'
+import { promptWithContainerContext } from '@/store/workspace-container-launch-prompt'
 import type { AgentStartupPlan } from '@/lib/tui-agent-startup'
 import { planLaunchAgentStartupPrompt } from '@/lib/launch-agent-startup-prompt-plan'
 import { persistAgentLaunchTabOrder } from '@/lib/launch-agent-tab-order'
@@ -149,7 +150,7 @@ function launchAgentInNewTabInternal(args: LaunchAgentInNewTabArgs): LaunchAgent
   const effectiveAgentArgs =
     agentArgs !== undefined ? agentArgs : resolveTuiAgentLaunchArgs(agent, store.settings)
   const agentEnv = resolveTuiAgentLaunchEnv(agent, store.settings, resolvedLaunchPlatform)
-  const trimmedPrompt = prompt?.trim() ?? ''
+  const trimmedPrompt = promptWithContainerContext(store, worktreeId, prompt?.trim() ?? '')
   const hasPrompt = trimmedPrompt.length > 0
   const isFollowupPath = TUI_AGENT_CONFIG[agent].promptInjectionMode === 'stdin-after-start'
   // Why: a followup-path agent gets its prompt pasted unsubmitted after start, so route it as a draft.

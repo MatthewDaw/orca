@@ -1,4 +1,5 @@
 import { BrowserWindow, ipcMain } from 'electron'
+import { startContainerBriefInbox } from '../containers/workspace-container-brief-inbox'
 import { WorkspaceContainerStore } from '../containers/workspace-container-store'
 import {
   readContainerBlueprint,
@@ -38,6 +39,8 @@ export function registerWorkspaceContainerHandlers(
   ]) {
     ipcMain.removeHandler(channel)
   }
+
+  startContainerBriefInbox(store, broadcast)
 
   ipcMain.handle('workspaceContainers:list', () => store.list())
   ipcMain.handle(
