@@ -10,6 +10,7 @@ import { getDaemonSessionResultMetadata } from './daemon-create-or-attach-result
 import { enumerateDirectoryOnce } from './directory-enumeration-probe'
 import { normalizePtySize } from './daemon-pty-size'
 import { Session } from './session'
+import { releaseStaleResumeHolders } from './stale-resume-holders'
 import { shellPathSupportsPtyStartupBarrier } from './shell-ready'
 import type { InternalCreateOrAttachOptions } from './terminal-host-agent-session-claim'
 import type { CreateOrAttachResult } from './terminal-host-create-contract'
@@ -140,6 +141,7 @@ async function spawnAndPublishSession(
   // Probe the requested cwd before the shell can fall back to another path.
   const cwdReadableByDaemon =
     opts.cwd && !wslDistro ? await isCwdReadableByThisProcess(opts.cwd) : null
+  await releaseStaleResumeHolders(opts.command)
   const subprocess = await deps.spawnSubprocess({
     sessionId: opts.sessionId,
     cols: size.cols,
