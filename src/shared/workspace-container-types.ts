@@ -14,6 +14,8 @@ export type WorkspaceContainer = {
   focus: string
   connections: WorkspaceContainerConnection[]
   position: WorkspaceContainerPosition
+  // Sidebar order among siblings; containers without one sort by creation time.
+  sortOrder?: number
   createdAt: number
   updatedAt: number
 }
@@ -33,7 +35,14 @@ export type WorkspaceContainerCreateInput = {
 export type WorkspaceContainerPatch = Partial<
   Pick<
     WorkspaceContainer,
-    'name' | 'worktreeId' | 'parentContainerId' | 'tabIds' | 'focus' | 'connections' | 'position'
+    | 'name'
+    | 'worktreeId'
+    | 'parentContainerId'
+    | 'tabIds'
+    | 'focus'
+    | 'connections'
+    | 'position'
+    | 'sortOrder'
   >
 >
 

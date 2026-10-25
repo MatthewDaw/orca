@@ -19,6 +19,7 @@ import type { Worktree } from '../../../../shared/worktree/types'
 import { createWorkspaceContainerOnWorktree } from './WorktreeContainerRows'
 import {
   buildWorkspaceContainerTree,
+  containerSortKey,
   type WorkspaceContainerNode
 } from './workspace-container-tree'
 
@@ -27,22 +28,56 @@ const NO_WORKTREES: readonly Worktree[] = []
 
 let draggedContainerId: string | null = null
 
-// Why: dropping a card on another nests it; a different worktree retargets it first, and a
-// rejected drop (cycle) is simply ignored.
-async function nestContainer(id: string, parentId: string | null): Promise<void> {
+type DropZone = 'before' | 'after' | 'child'
+
+// Why: wide bands (top/bottom quarter = reorder, middle half = nest) so a drop never needs
+// pixel precision, and the same zone drives the live preview before release.
+function dropZoneFor(event: React.DragEvent<HTMLElement>): DropZone {
+  const rect = event.currentTarget.getBoundingClientRect()
+  const ratio = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5
+  return ratio < 0.25 ? 'before' : ratio > 0.75 ? 'after' : 'child'
+}
+
+// A dropped container lands beside or inside the target; a different worktree retargets it
+// first, and a rejected drop (cycle) is simply ignored.
+async function placeContainer(id: string, targetId: string, zone: DropZone): Promise<void> {
   const { workspaceContainers, updateWorkspaceContainer } = useAppStore.getState()
-  const parent = parentId ? workspaceContainers.find((c) => c.id === parentId) : undefined
   const dragged = workspaceContainers.find((c) => c.id === id)
-  if (!dragged || id === parentId || (parentId && !parent)) {
+  const target = workspaceContainers.find((c) => c.id === targetId)
+  if (!dragged || !target || id === targetId) {
     return
   }
   try {
-    if (parent && parent.worktreeId !== dragged.worktreeId) {
-      await updateWorkspaceContainer(id, { worktreeId: parent.worktreeId })
+    if (dragged.worktreeId !== target.worktreeId) {
+      await updateWorkspaceContainer(id, { worktreeId: target.worktreeId })
     }
-    await updateWorkspaceContainer(id, { parentContainerId: parentId })
+    if (zone === 'child') {
+      await updateWorkspaceContainer(id, {
+        parentContainerId: target.id,
+        sortOrder: Date.now()
+      })
+      return
+    }
+    const siblings = workspaceContainers
+      .filter(
+        (c) =>
+          c.id !== id &&
+          c.worktreeId === target.worktreeId &&
+          c.parentContainerId === target.parentContainerId
+      )
+      .sort((a, b) => containerSortKey(a) - containerSortKey(b))
+    const at = siblings.findIndex((c) => c.id === target.id)
+    const targetKey = containerSortKey(target)
+    const neighbor = siblings[zone === 'before' ? at - 1 : at + 1]
+    const neighborKey = neighbor
+      ? containerSortKey(neighbor)
+      : targetKey + (zone === 'before' ? -1000 : 1000)
+    await updateWorkspaceContainer(id, {
+      parentContainerId: target.parentContainerId,
+      sortOrder: (targetKey + neighborKey) / 2
+    })
   } catch {
-    // Invalid nesting (e.g. into its own descendant): leave the tree unchanged.
+    // Invalid placement (e.g. into its own descendant): leave the tree unchanged.
   }
 }
 
@@ -165,20 +200,29 @@ function ContainerCard({
               if (draggedContainerId && draggedContainerId !== container.id) {
                 event.preventDefault()
                 event.stopPropagation()
+                event.currentTarget.dataset.drop = dropZoneFor(event)
               }
             }}
+            onDragLeave={(event) => {
+              delete event.currentTarget.dataset.drop
+            }}
             onDrop={(event) => {
+              delete event.currentTarget.dataset.drop
               if (draggedContainerId && draggedContainerId !== container.id) {
                 event.preventDefault()
                 event.stopPropagation()
-                void nestContainer(draggedContainerId, container.id)
+                void placeContainer(draggedContainerId, container.id, dropZoneFor(event))
                 draggedContainerId = null
               }
             }}
             data-workspace-container-id={container.id}
             aria-current={active ? 'true' : undefined}
             className={cn(
-              'flex cursor-pointer flex-col rounded-lg border py-1.5 pr-1.5 pl-3 select-none',
+              'relative flex cursor-pointer flex-col rounded-lg border py-1.5 pr-1.5 pl-3 select-none',
+              // Why: the drop preview — a line where it would land, or a ring on the new parent.
+              'data-[drop=child]:bg-accent data-[drop=child]:ring-2 data-[drop=child]:ring-ring',
+              "data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-1 data-[drop=before]:before:h-0.5 data-[drop=before]:before:rounded data-[drop=before]:before:bg-ring data-[drop=before]:before:content-['']",
+              "data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-1 data-[drop=after]:after:h-0.5 data-[drop=after]:after:rounded data-[drop=after]:after:bg-ring data-[drop=after]:after:content-['']",
               'border-border bg-accent/40',
               active ? 'bg-accent text-accent-foreground' : 'worktree-sidebar-card-hover'
             )}
@@ -299,13 +343,27 @@ export function WorktreeContainerBox({
   )
   return (
     <div
-      className={cn(tree.length > 0 && 'mx-1 rounded-lg border border-border bg-accent/30 pb-1')}
+      className={cn(
+        tree.length > 0 && 'mx-1 rounded-lg border border-border bg-accent/30 pb-1',
+        'data-[drop=worktree]:ring-2 data-[drop=worktree]:ring-ring'
+      )}
       onDragOver={(event) => {
         if (draggedContainerId) {
           event.preventDefault()
+          event.currentTarget.dataset.drop = 'worktree'
+        }
+      }}
+      onDragLeave={(event) => {
+        if (
+          !(
+            event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
+          )
+        ) {
+          delete event.currentTarget.dataset.drop
         }
       }}
       onDrop={(event) => {
+        delete event.currentTarget.dataset.drop
         if (draggedContainerId) {
           event.preventDefault()
           void moveContainerToWorktree(draggedContainerId, worktree.id)
