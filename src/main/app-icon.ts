@@ -7,14 +7,19 @@ import { dirname, resolve } from 'node:path'
 import { app, BrowserWindow, nativeImage } from 'electron'
 import classicIcon from '../../resources/icon.png?asset'
 import classicDevIcon from '../../resources/icon-dev.png?asset'
+import forkIcon from '../../resources/icon-fork.png?asset'
 import watercolorIcon from '../../resources/app-icons/orca-watercolor.png?asset'
 import watercolorMacDockIcon from '../../resources/app-icons/orca-watercolor.png?asset&asarUnpack'
 import blueIcon from '../../resources/app-icons/orca-blue.png?asset'
 import blueMacDockIcon from '../../resources/app-icons/orca-blue.png?asset&asarUnpack'
 import { normalizeAppIconId, type AppIconId } from '../shared/app-icon'
+import { isForkBuild } from './updater/fork-build-marker'
+
+// Why: the fork's live Dock icon is set from this path, so it must carry the fork's outlined logo.
+const packagedClassicIcon = isForkBuild() ? forkIcon : classicIcon
 
 const APP_ICON_PATHS = {
-  classic: !app.isPackaged ? classicDevIcon : classicIcon,
+  classic: !app.isPackaged ? classicDevIcon : packagedClassicIcon,
   watercolor: watercolorIcon,
   blue: blueIcon
 } satisfies Record<AppIconId, string>
