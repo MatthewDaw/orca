@@ -1,6 +1,12 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { WorkspaceContainerStore } from '../containers/workspace-container-store'
+import {
+  readContainerBlueprint,
+  writeContainerBlueprint
+} from '../containers/workspace-container-blueprint-file'
+import type { WorkspaceContainerBlueprint } from '../../shared/workspace-container-blueprint'
 import type {
+  WorkspaceContainer,
   WorkspaceContainerCatalog,
   WorkspaceContainerCreateInput,
   WorkspaceContainerPatch
@@ -24,6 +30,9 @@ export function registerWorkspaceContainerHandlers(
     'workspaceContainers:update',
     'workspaceContainers:remove',
     'workspaceContainers:assignTabs',
+    'workspaceContainers:readBlueprint',
+    'workspaceContainers:writeBlueprint',
+    'workspaceContainers:importContainers',
     'workspaceContainers:releaseTab',
     'workspaceContainers:getContextPagePath'
   ]) {
@@ -46,6 +55,19 @@ export function registerWorkspaceContainerHandlers(
   )
   ipcMain.handle('workspaceContainers:assignTabs', async (_event, id: string, tabIds: string[]) =>
     broadcast(await store.assignTabs(id, tabIds))
+  )
+  ipcMain.handle('workspaceContainers:readBlueprint', (_event, projectPath: string) =>
+    readContainerBlueprint(projectPath)
+  )
+  ipcMain.handle(
+    'workspaceContainers:writeBlueprint',
+    (_event, projectPath: string, blueprint: WorkspaceContainerBlueprint) =>
+      writeContainerBlueprint(projectPath, blueprint)
+  )
+  ipcMain.handle(
+    'workspaceContainers:importContainers',
+    async (_event, containers: WorkspaceContainer[]) =>
+      broadcast(await store.importContainers(containers))
   )
   ipcMain.handle('workspaceContainers:remove', async (_event, id: string) =>
     broadcast(await store.remove(id))

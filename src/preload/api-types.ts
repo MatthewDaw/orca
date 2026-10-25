@@ -65,6 +65,7 @@ import type { UiCommandEventApi } from './api/ui-command-event-api'
 import type { UiWindowApi } from './api/ui-window-api'
 import type { UpdaterApi } from './api/updater-api'
 import type { WorkspaceCleanupApi, WorkspaceSpaceApi } from './api/workspace-cleanup-api'
+import type { WorkspaceContainerBlueprint } from '../shared/workspace-container-blueprint'
 import type {
   WorkspaceContainer,
   WorkspaceContainerCatalog,
@@ -77,6 +78,9 @@ export type WorkspaceContainersApi = {
   create: (input: WorkspaceContainerCreateInput) => Promise<WorkspaceContainer>
   update: (id: string, patch: WorkspaceContainerPatch) => Promise<WorkspaceContainerCatalog>
   assignTabs: (id: string, tabIds: string[]) => Promise<WorkspaceContainerCatalog>
+  readBlueprint: (projectPath: string) => Promise<WorkspaceContainerBlueprint | null>
+  writeBlueprint: (projectPath: string, blueprint: WorkspaceContainerBlueprint) => Promise<void>
+  importContainers: (containers: WorkspaceContainer[]) => Promise<WorkspaceContainerCatalog>
   remove: (id: string) => Promise<WorkspaceContainerCatalog>
   releaseTab: (tabId: string) => Promise<WorkspaceContainerCatalog>
   getContextPagePath: (id: string) => Promise<string>

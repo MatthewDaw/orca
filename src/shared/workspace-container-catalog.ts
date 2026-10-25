@@ -5,6 +5,27 @@ import type {
   WorkspaceContainerPatch
 } from './workspace-container-types'
 
+const GRID_COLUMNS = 3
+const GRID_COLUMN_WIDTH = 340
+const GRID_ROW_HEIGHT = 260
+const CHILD_FIRST_Y = 56
+const CHILD_ROW_HEIGHT = 112
+
+// Sized so a group wrapping its children never overlaps its neighbours on the graph canvas.
+function defaultContainerPosition(
+  catalog: WorkspaceContainerCatalog,
+  parentId: string | null
+): { x: number; y: number } {
+  const siblings = catalog.containers.filter((c) => c.parentContainerId === parentId).length
+  if (parentId) {
+    return { x: 24, y: CHILD_FIRST_Y + siblings * CHILD_ROW_HEIGHT }
+  }
+  return {
+    x: 40 + (siblings % GRID_COLUMNS) * GRID_COLUMN_WIDTH,
+    y: 40 + Math.floor(siblings / GRID_COLUMNS) * GRID_ROW_HEIGHT
+  }
+}
+
 export function createContainer(
   catalog: WorkspaceContainerCatalog,
   input: WorkspaceContainerCreateInput,
@@ -24,7 +45,7 @@ export function createContainer(
     tabIds: [],
     focus: '',
     connections: [],
-    position: input.position ?? { x: 0, y: 0 },
+    position: input.position ?? defaultContainerPosition(catalog, parentId),
     createdAt: now,
     updatedAt: now
   }
@@ -74,6 +95,19 @@ export function assignTabsToContainer(
     return catalog
   }
   return updateContainer(catalog, id, { tabIds: [...target.tabIds, ...tabIds] }, now)
+}
+
+// Existing ids win, so re-importing a blueprint never overwrites local edits or tab membership.
+export function importContainers(
+  catalog: WorkspaceContainerCatalog,
+  incoming: readonly WorkspaceContainer[]
+): WorkspaceContainerCatalog {
+  const known = new Set(catalog.containers.map((c) => c.id))
+  const fresh = incoming.filter((c) => !known.has(c.id))
+  if (fresh.length === 0) {
+    return catalog
+  }
+  return { ...catalog, containers: [...catalog.containers, ...fresh] }
 }
 
 export function removeContainer(

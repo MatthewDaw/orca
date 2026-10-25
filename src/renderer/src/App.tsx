@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { useAppStore } from './store'
 import { installWorkspaceContainerTabSync } from './store/workspace-container-tab-sync'
+import { installWorkspaceContainerBlueprintSync } from './store/workspace-container-blueprint-sync'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConfirmationDialogProvider } from './components/confirmation-dialog'
@@ -74,7 +75,12 @@ function App(): React.JSX.Element {
   useEffect(() => installActiveWorktreeRemovalSuccessor(), [])
   useEffect(() => {
     void useAppStore.getState().loadWorkspaceContainers()
-    return installWorkspaceContainerTabSync()
+    const stopTabSync = installWorkspaceContainerTabSync()
+    const stopBlueprintSync = installWorkspaceContainerBlueprintSync()
+    return () => {
+      stopTabSync()
+      stopBlueprintSync()
+    }
   }, [])
 
   // Why: the same vars are set inline on .app-layout below, but portaled surfaces

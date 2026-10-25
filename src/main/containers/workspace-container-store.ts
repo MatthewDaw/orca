@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import {
   assignTabsToContainer,
   createContainer,
+  importContainers,
   removeContainer,
   removeTabFromContainers,
   removeWorktreeContainers,
@@ -49,6 +50,10 @@ export class WorkspaceContainerStore {
 
   async assignTabs(id: string, tabIds: string[]): Promise<WorkspaceContainerCatalog> {
     return this.mutate((catalog) => assignTabsToContainer(catalog, id, tabIds, Date.now()))
+  }
+
+  async importContainers(containers: WorkspaceContainer[]): Promise<WorkspaceContainerCatalog> {
+    return this.mutate((catalog) => importContainers(catalog, containers))
   }
 
   async remove(id: string): Promise<WorkspaceContainerCatalog> {

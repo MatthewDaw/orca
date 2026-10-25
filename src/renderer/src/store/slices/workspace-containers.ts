@@ -11,6 +11,7 @@ let unsubscribeFromCatalogChanges: (() => void) | null = null
 
 export type WorkspaceContainersSlice = {
   workspaceContainers: WorkspaceContainer[]
+  workspaceContainersLoaded: boolean
   activeContainerIdByWorktree: Record<string, string | null>
   containerGraphOpen: boolean
   setContainerGraphOpen: (open: boolean) => void
@@ -30,6 +31,7 @@ export const createWorkspaceContainersSlice: StateCreator<
   WorkspaceContainersSlice
 > = (set, get) => ({
   workspaceContainers: [],
+  workspaceContainersLoaded: false,
   activeContainerIdByWorktree: {},
   containerGraphOpen: false,
 
@@ -55,7 +57,11 @@ export const createWorkspaceContainersSlice: StateCreator<
           id && liveIds.has(id) ? id : null
         ])
       )
-      return { workspaceContainers: catalog.containers, activeContainerIdByWorktree }
+      return {
+        workspaceContainers: catalog.containers,
+        workspaceContainersLoaded: true,
+        activeContainerIdByWorktree
+      }
     }),
 
   createWorkspaceContainer: async (input) => {

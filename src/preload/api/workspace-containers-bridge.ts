@@ -1,5 +1,7 @@
 import { ipcRenderer } from 'electron'
+import type { WorkspaceContainerBlueprint } from '../../shared/workspace-container-blueprint'
 import type {
+  WorkspaceContainer,
   WorkspaceContainerCatalog,
   WorkspaceContainerCreateInput,
   WorkspaceContainerPatch
@@ -13,6 +15,12 @@ export const workspaceContainersApi = {
     ipcRenderer.invoke('workspaceContainers:update', id, patch),
   assignTabs: (id: string, tabIds: string[]) =>
     ipcRenderer.invoke('workspaceContainers:assignTabs', id, tabIds),
+  readBlueprint: (projectPath: string) =>
+    ipcRenderer.invoke('workspaceContainers:readBlueprint', projectPath),
+  writeBlueprint: (projectPath: string, blueprint: WorkspaceContainerBlueprint) =>
+    ipcRenderer.invoke('workspaceContainers:writeBlueprint', projectPath, blueprint),
+  importContainers: (containers: WorkspaceContainer[]) =>
+    ipcRenderer.invoke('workspaceContainers:importContainers', containers),
   remove: (id: string) => ipcRenderer.invoke('workspaceContainers:remove', id),
   releaseTab: (tabId: string) => ipcRenderer.invoke('workspaceContainers:releaseTab', tabId),
   getContextPagePath: (id: string) =>

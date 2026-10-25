@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  importContainers,
   assignTabsToContainer,
   createContainer,
   removeContainer,
@@ -34,6 +35,12 @@ describe('workspace container catalog', () => {
     expect(seed().containers.filter((c) => c.worktreeId === 'wt-1')).toHaveLength(2)
   })
 
+  it('staggers default positions so new containers do not overlap', () => {
+    const topLevel = seed().containers.filter((c) => !c.parentContainerId)
+    const positions = new Set(topLevel.map((c) => `${c.position.x},${c.position.y}`))
+    expect(positions.size).toBe(topLevel.length)
+  })
+
   it('rejects a parent from another worktree', () => {
     expect(() =>
       createContainer(seed(), { worktreeId: 'wt-1', name: 'x', parentContainerId: 'c' }, 'd', 4)
@@ -55,6 +62,17 @@ describe('workspace container catalog', () => {
     const byId = Object.fromEntries(catalog.containers.map((c) => [c.id, c.tabIds]))
     expect(byId.a).toEqual(['t1'])
     expect(byId.b).toEqual(['t2'])
+  })
+
+  it('imports only containers whose ids are new', () => {
+    const catalog = seed()
+    const [existing] = catalog.containers
+    const imported = importContainers(catalog, [
+      { ...existing!, name: 'changed' },
+      { ...existing!, id: 'new-one', name: 'New' }
+    ])
+    expect(imported.containers.map((c) => c.id)).toEqual(['a', 'b', 'c', 'new-one'])
+    expect(imported.containers[0]!.name).toBe('API')
   })
 
   it('dedupes tab ids within one container', () => {
