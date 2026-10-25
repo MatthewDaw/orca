@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Tab } from '../../../../shared/tab-types'
 import type { WorkspaceContainer } from '../../../../shared/workspace-container-types'
 import { createTestStore } from './store-test-helpers'
 
@@ -27,8 +28,19 @@ function seedStore() {
   store.setState({
     workspaceContainers: [container('a', ['t1', 't2']), container('b', ['t3'])],
     unifiedTabsByWorktree: {
-      wt: ['t1', 't2', 't3'].map((id) => ({ id, contentType: 'terminal', entityId: `e-${id}` }))
-    } as never
+      wt: ['t1', 't2', 't3'].map((id): Tab => ({
+        id,
+        entityId: `e-${id}`,
+        groupId: 'g',
+        worktreeId: 'wt',
+        contentType: 'terminal',
+        label: id,
+        customLabel: null,
+        color: null,
+        sortOrder: 0,
+        createdAt: 0
+      }))
+    }
   })
   return store
 }
