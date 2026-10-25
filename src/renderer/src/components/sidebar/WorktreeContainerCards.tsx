@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Boxes, Network, Plus, Trash2 } from 'lucide-react'
+import { Boxes, ChevronDown, ChevronRight, Network, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store'
 import { ImeInput } from '@/lib/ime-text-field'
@@ -59,6 +59,38 @@ async function moveContainerToWorktree(id: string, worktreeId: string): Promise<
   )
 }
 
+function ChildToggle({
+  count,
+  collapsed,
+  onToggle,
+  className
+}: {
+  count: number
+  collapsed: boolean
+  onToggle: () => void
+  className?: string
+}): React.JSX.Element {
+  const Chevron = collapsed ? ChevronRight : ChevronDown
+  return (
+    <button
+      type="button"
+      aria-expanded={!collapsed}
+      className={cn(
+        'flex w-fit items-center gap-1 rounded border border-border px-1 text-[10px] text-muted-foreground hover:text-foreground',
+        className
+      )}
+      onClick={(event) => {
+        event.stopPropagation()
+        onToggle()
+      }}
+    >
+      <Boxes className="size-3" />
+      {count} child{count > 1 ? 'ren' : ''}
+      <Chevron className="size-3" />
+    </button>
+  )
+}
+
 const stopBubble = (event: React.SyntheticEvent): void => event.stopPropagation()
 
 function ContainerCard({
@@ -72,6 +104,7 @@ function ContainerCard({
 }): React.JSX.Element {
   const { container } = node
   const [renaming, setRenaming] = useState(false)
+  const [childrenCollapsed, setChildrenCollapsed] = useState(false)
   const [draftName, setDraftName] = useState(container.name)
   const active = useAppStore(
     (s) =>
@@ -186,9 +219,12 @@ function ContainerCard({
             </div>
             <span className="truncate pl-3.5 text-xs text-muted-foreground">on {targetLabel}</span>
             {node.children.length > 0 ? (
-              <span className="mt-1 ml-3.5 w-fit rounded border border-border px-1 text-[10px] text-muted-foreground">
-                {node.children.length} child{node.children.length > 1 ? 'ren' : ''}
-              </span>
+              <ChildToggle
+                className="mt-1 ml-3.5"
+                count={node.children.length}
+                collapsed={childrenCollapsed}
+                onToggle={() => setChildrenCollapsed((value) => !value)}
+              />
             ) : null}
           </div>
         </ContextMenuTrigger>
@@ -229,7 +265,7 @@ function ContainerCard({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-      {node.children.length > 0 ? (
+      {node.children.length > 0 && !childrenCollapsed ? (
         <div className="mt-1 ml-3 space-y-1">
           {node.children.map((child) => (
             <ContainerCard
@@ -254,6 +290,7 @@ export function WorktreeContainerBox({
   worktree: Worktree
   children: React.ReactNode
 }): React.JSX.Element {
+  const [collapsed, setCollapsed] = useState(false)
   const containers = useAppStore((s) => s.workspaceContainers ?? NO_CONTAINERS)
   const repoWorktrees = useAppStore((s) => s.worktreesByRepo?.[worktree.repoId] ?? NO_WORKTREES)
   const tree = useMemo(
@@ -278,12 +315,14 @@ export function WorktreeContainerBox({
     >
       {children}
       {tree.length > 0 ? (
-        <span className="mt-1 ml-5 flex w-fit items-center gap-1 rounded border border-border px-1 text-[10px] text-muted-foreground">
-          <Boxes className="size-3" />
-          {tree.length} child{tree.length > 1 ? 'ren' : ''}
-        </span>
+        <ChildToggle
+          className="mt-1 ml-5"
+          count={tree.length}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed((value) => !value)}
+        />
       ) : null}
-      {tree.length > 0 ? (
+      {tree.length > 0 && !collapsed ? (
         <div
           className="mt-1 space-y-1 px-1"
           data-worktree-container-cards=""
