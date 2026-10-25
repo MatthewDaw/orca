@@ -20,12 +20,13 @@ export function containerPathSegments(
   return [container.worktreeLabel ?? container.worktreeId, ...names]
 }
 
-// Scope set on a container applies to everything nested under it, now and later, because it is
-// read from the live tree rather than copied into children. Outermost ancestor first.
-export function inheritedCodeScopes(
+// Scope and briefs set on a container apply to everything nested under it, now and later,
+// because they are read from the live tree rather than copied into children. Outermost first.
+function inheritedText(
   catalog: WorkspaceContainerCatalog,
-  container: WorkspaceContainer
-): { container: WorkspaceContainer; scope: string }[] {
+  container: WorkspaceContainer,
+  read: (c: WorkspaceContainer) => string | undefined
+): { container: WorkspaceContainer; text: string }[] {
   const byId = new Map(catalog.containers.map((c) => [c.id, c]))
   const chain: WorkspaceContainer[] = []
   const seen = new Set<string>()
@@ -37,9 +38,32 @@ export function inheritedCodeScopes(
     seen.add(cursor.id)
     chain.unshift(cursor)
   }
-  return chain
-    .filter((c) => c.codeScope?.trim())
-    .map((c) => ({ container: c, scope: c.codeScope!.trim() }))
+  return chain.flatMap((c) => {
+    const text = read(c)?.trim()
+    return text ? [{ container: c, text }] : []
+  })
+}
+
+export function inheritedCodeScopes(
+  catalog: WorkspaceContainerCatalog,
+  container: WorkspaceContainer
+): { container: WorkspaceContainer; scope: string }[] {
+  return inheritedText(catalog, container, (c) => c.codeScope).map(
+    ({ container: owner, text }) => ({
+      container: owner,
+      scope: text
+    })
+  )
+}
+
+export function inheritedBriefs(
+  catalog: WorkspaceContainerCatalog,
+  container: WorkspaceContainer
+): { container: WorkspaceContainer; brief: string }[] {
+  return inheritedText(catalog, container, (c) => c.brief).map(({ container: owner, text }) => ({
+    container: owner,
+    brief: text
+  }))
 }
 
 export function describeContainerPath(

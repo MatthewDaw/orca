@@ -47,11 +47,13 @@ export function ContainerContextEditor({
   const [name, setName] = useState(container.name)
   const [focus, setFocus] = useState(container.focus)
   const [codeScope, setCodeScope] = useState(container.codeScope ?? '')
+  const [brief, setBrief] = useState(container.brief ?? '')
   useEffect(() => {
     setName(container.name)
     setFocus(container.focus)
     setCodeScope(container.codeScope ?? '')
-  }, [container.id, container.name, container.focus, container.codeScope])
+    setBrief(container.brief ?? '')
+  }, [container.id, container.name, container.focus, container.codeScope, container.brief])
 
   const byId = new Map(containers.map((c) => [c.id, c]))
   const blockedParents = collectContainerDescendantIds(containers, container.id).add(container.id)
@@ -126,6 +128,17 @@ export function ContainerContextEditor({
           value={codeScope}
           onChange={(event) => setCodeScope(event.target.value)}
           onBlur={() => codeScope !== (container.codeScope ?? '') && onPatch({ codeScope })}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className={FIELD_LABEL}>Brief for nested containers</span>
+        <Textarea
+          rows={6}
+          placeholder="Markdown every container nested under this one must read: conventions, decisions, what to avoid…"
+          value={brief}
+          onChange={(event) => setBrief(event.target.value)}
+          onBlur={() => brief !== (container.brief ?? '') && onPatch({ brief })}
         />
       </label>
 

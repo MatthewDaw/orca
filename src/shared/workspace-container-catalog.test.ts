@@ -135,6 +135,20 @@ describe('workspace container catalog', () => {
     expect(page).toContain('**Your scope:** src/api/docs')
   })
 
+  it('puts every ancestor brief on a nested container page, outermost first', () => {
+    let catalog = updateContainer(seed(), 'a', { brief: 'Use the repository pattern.' }, 5)
+    catalog = updateContainer(catalog, 'b', { brief: 'Mock the clock.' }, 6)
+    const page = renderContainerContextPage(
+      catalog.containers.find((c) => c.id === 'b')!,
+      catalog
+    )
+    expect(page.indexOf('Use the repository pattern.')).toBeLessThan(
+      page.indexOf('Mock the clock.')
+    )
+    expect(page).toContain('### From wt-1 › API')
+    expect(page).toContain('Briefing — read before you start')
+  })
+
   it('renders focus and connections for agents', () => {
     const catalog = updateContainer(
       seed(),

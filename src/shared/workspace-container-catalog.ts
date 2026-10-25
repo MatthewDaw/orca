@@ -1,4 +1,8 @@
-import { describeContainerPath, inheritedCodeScopes } from './workspace-container-routing'
+import {
+  describeContainerPath,
+  inheritedBriefs,
+  inheritedCodeScopes
+} from './workspace-container-routing'
 import type {
   WorkspaceContainer,
   WorkspaceContainerCatalog,
@@ -247,6 +251,20 @@ export function renderContainerContextPage(
         owner.id === container.id
           ? `**Your scope:** ${scope}`
           : `**Inherited from ${describeContainerPath(catalog, owner)}:** ${scope}`,
+        ''
+      )
+    }
+  }
+  const briefs = inheritedBriefs(catalog, container)
+  if (briefs.length > 0) {
+    lines.push('## Briefing — read before you start', '')
+    for (const { container: owner, brief } of briefs) {
+      lines.push(
+        owner.id === container.id
+          ? '### Your brief for the containers nested under you'
+          : `### From ${describeContainerPath(catalog, owner)}`,
+        '',
+        brief,
         ''
       )
     }
