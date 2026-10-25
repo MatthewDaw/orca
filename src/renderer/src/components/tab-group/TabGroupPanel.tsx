@@ -345,7 +345,7 @@ export default function TabGroupPanel({
             data-container-empty-state=""
             className="absolute inset-0 z-[60] flex items-center justify-center bg-background text-sm text-muted-foreground"
           >
-            This container has no open tab here. Press + to start a session.
+            Nothing is open in this space yet. Press + to start a session.
           </div>
         ) : null}
         {activeTab &&

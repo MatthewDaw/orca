@@ -371,7 +371,18 @@ export function WorktreeContainerBox({
         }
       }}
     >
-      {children}
+      {/* Why: the worktree card is a space of its own, so selecting it leaves any container. */}
+      <div
+        onClickCapture={(event) => {
+          const owner =
+            event.target instanceof Element ? event.target.closest('[data-worktree-id]') : null
+          if (owner instanceof HTMLElement && owner.dataset.worktreeId === worktree.id) {
+            useAppStore.getState().setActiveWorkspaceContainer(worktree.id, null)
+          }
+        }}
+      >
+        {children}
+      </div>
       {tree.length > 0 ? (
         <ChildToggle
           className="mt-1 ml-5"

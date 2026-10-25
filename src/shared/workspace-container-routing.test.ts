@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatContainerMessage,
+  inheritedBriefs,
+  inheritedCodeScopes,
   pickTargetTerminal,
   resolveContainerRef
 } from './workspace-container-routing'
@@ -74,6 +76,75 @@ describe('resolveContainerRef', () => {
     }
     expect(resolveContainerRef(renamed, 'ai analysis padel').container?.id).toBe('ws-pb')
     expect(resolveContainerRef(renamed, 'AI Analysis/pickleball').container).toBeNull()
+  })
+})
+
+describe('deeply nested containers', () => {
+  const deep: WorkspaceContainerCatalog = {
+    version: 1,
+    containers: [
+      container('story', 'match story analysis', 'website'),
+      container('pb', 'pickleball', 'website', 'story'),
+      container('pb2', 'pickleball', 'computer_vision'),
+      container('l4', 'serve tracking', 'website', 'pb'),
+      container('l5', 'toss', 'website', 'l4')
+    ]
+  }
+  const idIn = (ref: string): string | null => resolveContainerRef(deep, ref).container?.id ?? null
+
+  it('finds a container through any number of layers, with or without the middle', () => {
+    expect(idIn('website pickleball')).toBe('pb')
+    expect(idIn('website/pickleball')).toBe('pb')
+    expect(idIn('website/match story analysis/pickleball')).toBe('pb')
+    expect(idIn('website/toss')).toBe('l5')
+    expect(idIn('website › match story analysis › pickleball › serve tracking › toss')).toBe('l5')
+  })
+
+  it('keeps same-named containers on other worktrees apart', () => {
+    expect(idIn('computer_vision/pickleball')).toBe('pb2')
+  })
+
+  it('inherits scope and briefs from every ancestor up to the root', () => {
+    const withText = {
+      ...deep,
+      containers: deep.containers.map((c) =>
+        c.id === 'story'
+          ? { ...c, codeScope: 'root scope', brief: 'root brief' }
+          : c.id === 'pb'
+            ? { ...c, codeScope: 'mid scope' }
+            : c
+      )
+    }
+    const leaf = withText.containers.find((c) => c.id === 'l5')!
+    expect(inheritedCodeScopes(withText, leaf).map((s) => s.scope)).toEqual([
+      'root scope',
+      'mid scope'
+    ])
+    expect(inheritedBriefs(withText, leaf).map((b) => b.brief)).toEqual(['root brief'])
+  })
+})
+
+describe('resilience to restructuring', () => {
+  it('still finds a container from a stale path after a layer was removed', () => {
+    const flat: WorkspaceContainerCatalog = {
+      version: 1,
+      containers: [container('pb', 'pickleball', 'website'), container('x', 'other', 'website')]
+    }
+    expect(resolveContainerRef(flat, 'website/match story analysis/pickleball').container?.id).toBe(
+      'pb'
+    )
+  })
+
+  it('never resolves a deleted container', () => {
+    expect(resolveContainerRef({ version: 1, containers: [] }, 'pb').container).toBeNull()
+  })
+
+  it('tells the recipient to stop replying on the last allowed exchange', () => {
+    const sender = catalog.containers[0]!
+    expect(formatContainerMessage(catalog, sender, 'hi', 2)).toContain('--exchange 3')
+    const last = formatContainerMessage(catalog, sender, 'hi', 8)
+    expect(last).toContain('do not reply')
+    expect(last).not.toContain('--exchange 9')
   })
 })
 

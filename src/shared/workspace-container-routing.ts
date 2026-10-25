@@ -111,22 +111,76 @@ export function resolveContainerRef(
       (segment, index) => segments[segments.length - refSegments.length + index] === segment
     )
   )
-  // 2. Otherwise every word of the reference appears somewhere in the path ("basketball computer vision").
+  // 2. The reference's parts appear in order along the path, layers in between skipped
+  //    ("website/pickleball" finds website › match story analysis › pickleball).
+  const orderedMatches = paths.filter(({ segments }) => {
+    if (refSegments.length < 2 || segments.at(-1) !== refSegments.at(-1)) {
+      return false
+    }
+    let cursor = 0
+    return refSegments.every((part) => {
+      const found = segments.indexOf(part, cursor)
+      cursor = found + 1
+      return found !== -1
+    })
+  })
+  // 3. Otherwise every word of the reference appears somewhere in the path ("basketball computer vision").
   const words = normalize(ref.replace(/[/›>]/g, ' ')).split(' ')
   const wordMatches = paths.filter(({ segments }) => {
     const haystack = segments.join(' ')
     return words.every((word) => haystack.includes(word))
   })
-  const matches = suffixMatches.length > 0 ? suffixMatches : wordMatches
+  const matches =
+    suffixMatches.length > 0
+      ? suffixMatches
+      : orderedMatches.length > 0
+        ? orderedMatches
+        : wordMatches
   if (matches.length === 1) {
     return { container: matches[0]!.container }
   }
-  // 3. Several matches: prefer the one whose own name is the last word group of the reference.
+  // 4. Several matches: prefer the one whose own name is the last word group of the reference.
   const named = matches.filter(({ segments }) => segments.at(-1) === refSegments.at(-1))
   if (named.length === 1) {
     return { container: named[0]!.container }
   }
-  return { container: null, candidates: matches.map((m) => m.container) }
+  // 5. A loose reference reads "<where> <name>": the container's own name carries the last word.
+  const lastWord = words.at(-1)
+  const byOwnName = lastWord
+    ? matches.filter(({ segments }) => segments.at(-1)?.includes(lastWord))
+    : []
+  if (byOwnName.length === 1) {
+    return { container: byOwnName[0]!.container }
+  }
+  if (matches.length > 0) {
+    return { container: null, candidates: matches.map((m) => m.container) }
+  }
+  // 6. A stale path (a layer was since removed or renamed) still finds its target by name: rank
+  //    containers sharing the last name by how many of the other parts still line up.
+  const lastPart = refSegments.at(-1)!
+  const sameName = paths.filter(({ segments }) => segments.at(-1) === lastPart)
+  const scored = sameName.map(({ container, segments }) => {
+    let cursor = 0
+    let score = 0
+    for (const part of refSegments.slice(0, -1)) {
+      const found = segments.indexOf(part, cursor)
+      if (found !== -1) {
+        score += 1
+        cursor = found + 1
+      }
+    }
+    return { container, score }
+  })
+  const best = Math.max(0, ...scored.map((s) => s.score))
+  // Why: a bare name, or a path whose earlier parts match nothing, may now mean a different
+  // container entirely (it was renamed), and misrouting a message is worse than failing.
+  if (refSegments.length > 1 && best === 0) {
+    return { container: null, candidates: [] }
+  }
+  const top = scored.filter((s) => s.score === best)
+  return top.length === 1
+    ? { container: top[0]!.container }
+    : { container: null, candidates: top.map((s) => s.container) }
 }
 
 type TerminalLike = {
@@ -160,16 +214,28 @@ export function pickTargetTerminal<T extends TerminalLike>(
   return pool[0] ?? null
 }
 
+export const MAX_CONTAINER_EXCHANGES = 8
+
 export function formatContainerMessage(
   catalog: WorkspaceContainerCatalog,
   sender: WorkspaceContainer | null,
-  text: string
+  text: string,
+  exchange = 1
 ): string {
   const from = sender
     ? `${describeContainerPath(catalog, sender)} (container id ${sender.id})`
     : 'a user or an agent outside any container'
-  const reply = sender
-    ? `To reply: orca container message --to "${sender.id}" --text "<your reply>"`
-    : ''
-  return [`[Message from ${from}]`, text.trim(), reply].filter(Boolean).join('\n')
+  const lastTurn = exchange >= MAX_CONTAINER_EXCHANGES
+  const reply = !sender
+    ? ''
+    : lastTurn
+      ? 'This is the last automatic exchange between you two: do not reply to the container. Summarize where things stand for the user instead.'
+      : `To reply: orca container message --to "${sender.id}" --exchange ${exchange + 1} --text "<your reply>"`
+  return [
+    `[Message from ${from} — exchange ${exchange}/${MAX_CONTAINER_EXCHANGES}]`,
+    text.trim(),
+    reply
+  ]
+    .filter(Boolean)
+    .join('\n')
 }

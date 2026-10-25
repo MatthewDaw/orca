@@ -13,6 +13,7 @@ import type { RuntimeTerminalListResult } from '../../shared/runtime-terminal-co
 import {
   describeContainerPath,
   formatContainerMessage,
+  MAX_CONTAINER_EXCHANGES,
   pickTargetTerminal,
   resolveContainerRef
 } from '../../shared/workspace-container-routing'
@@ -74,6 +75,16 @@ async function printContext(ctx: HandlerContext): Promise<void> {
 }
 
 async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
+  const exchange = Number.parseInt(getOptionalStringFlag(ctx.flags, 'exchange') ?? '1', 10)
+  if (!Number.isInteger(exchange) || exchange < 1) {
+    throw new RuntimeClientError('invalid_argument', '--exchange must be a positive integer.')
+  }
+  if (exchange > MAX_CONTAINER_EXCHANGES) {
+    throw new RuntimeClientError(
+      'invalid_argument',
+      `This conversation has reached ${MAX_CONTAINER_EXCHANGES} automatic exchanges. Stop messaging the other container and summarize where things stand for the user.`
+    )
+  }
   const catalog = await readCatalog()
   const toRef = getRequiredStringFlag(ctx.flags, 'to')
   const target = resolveContainerRef(catalog, toRef)
@@ -108,7 +119,12 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
   }
   const sent = await ctx.client.call<{ send: { accepted: boolean } }>('terminal.send', {
     terminal: terminal.handle,
-    text: formatContainerMessage(catalog, sender, getRequiredStringFlag(ctx.flags, 'text')),
+    text: formatContainerMessage(
+      catalog,
+      sender,
+      getRequiredStringFlag(ctx.flags, 'text'),
+      exchange
+    ),
     enter: true,
     interrupt: false,
     client: { id: 'orca-cli', type: 'desktop' }
