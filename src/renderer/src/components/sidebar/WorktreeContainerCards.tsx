@@ -46,6 +46,19 @@ async function nestContainer(id: string, parentId: string | null): Promise<void>
   }
 }
 
+async function moveContainerToWorktree(id: string, worktreeId: string): Promise<void> {
+  const { workspaceContainers, updateWorkspaceContainer } = useAppStore.getState()
+  const dragged = workspaceContainers.find((c) => c.id === id)
+  if (!dragged) {
+    return
+  }
+  // Same worktree: dropping on the box un-nests; another worktree: retarget (releases its tabs).
+  await updateWorkspaceContainer(
+    id,
+    dragged.worktreeId === worktreeId ? { parentContainerId: null } : { worktreeId }
+  )
+}
+
 const stopBubble = (event: React.SyntheticEvent): void => event.stopPropagation()
 
 function ContainerCard({
@@ -133,7 +146,7 @@ function ContainerCard({
             aria-current={active ? 'true' : undefined}
             className={cn(
               'flex cursor-pointer flex-col rounded-lg border py-1.5 pr-1.5 pl-3 select-none',
-              depth > 0 ? 'border-border bg-accent/40' : 'border-transparent',
+              'border-border bg-accent/40',
               active ? 'bg-accent text-accent-foreground' : 'worktree-sidebar-card-hover'
             )}
             onClick={select}
@@ -232,43 +245,61 @@ function ContainerCard({
   )
 }
 
-// Why: containers read as sibling cards of the worktree they point at, not rows inside its card.
-export function WorktreeContainerCards({
-  worktree
+// Why: a worktree with containers draws one outlined box around its card and its container
+// children; dropping a dragged container anywhere on the box points it at this worktree.
+export function WorktreeContainerBox({
+  worktree,
+  children
 }: {
   worktree: Worktree
-}): React.JSX.Element | null {
+  children: React.ReactNode
+}): React.JSX.Element {
   const containers = useAppStore((s) => s.workspaceContainers ?? NO_CONTAINERS)
   const repoWorktrees = useAppStore((s) => s.worktreesByRepo?.[worktree.repoId] ?? NO_WORKTREES)
   const tree = useMemo(
     () => buildWorkspaceContainerTree(containers, worktree.id),
     [containers, worktree.id]
   )
-  if (tree.length === 0) {
-    return null
-  }
   return (
     <div
-      className="mt-1 space-y-1"
-      data-worktree-container-cards=""
-      onDragOver={(event) => draggedContainerId && event.preventDefault()}
-      onDrop={(event) => {
-        // Why: dropping on empty space between cards moves a nested container back to the top level.
+      className={cn(tree.length > 0 && 'mx-1 rounded-lg border border-border bg-accent/30 pb-1')}
+      onDragOver={(event) => {
         if (draggedContainerId) {
           event.preventDefault()
-          void nestContainer(draggedContainerId, null)
+        }
+      }}
+      onDrop={(event) => {
+        if (draggedContainerId) {
+          event.preventDefault()
+          void moveContainerToWorktree(draggedContainerId, worktree.id)
           draggedContainerId = null
         }
       }}
     >
-      {tree.map((node) => (
-        <ContainerCard
-          key={node.container.id}
-          node={node}
-          depth={0}
-          repoWorktrees={repoWorktrees}
-        />
-      ))}
+      {children}
+      {tree.length > 0 ? (
+        <span className="mt-1 ml-5 flex w-fit items-center gap-1 rounded border border-border px-1 text-[10px] text-muted-foreground">
+          <Boxes className="size-3" />
+          {tree.length} child{tree.length > 1 ? 'ren' : ''}
+        </span>
+      ) : null}
+      {tree.length > 0 ? (
+        <div
+          className="mt-1 space-y-1 px-1"
+          data-worktree-container-cards=""
+          onPointerDown={stopBubble}
+          onClick={stopBubble}
+        >
+          {tree.map((node) => (
+            <ContainerCard
+              key={node.container.id}
+              node={node}
+              depth={0}
+              repoWorktrees={repoWorktrees}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

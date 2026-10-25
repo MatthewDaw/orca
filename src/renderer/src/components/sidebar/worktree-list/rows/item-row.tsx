@@ -7,7 +7,7 @@ import type { Worktree } from '../../../../../../shared/worktree/types'
 import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
 import { isActiveSidebarWorkspace } from '../../../../../../shared/sidebar-list/active-workspace'
 import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'
-import { WorktreeContainerCards } from '../../WorktreeContainerCards'
+import { WorktreeContainerBox } from '../../WorktreeContainerCards'
 import { PINNED_GROUP_KEY } from '../../../../../../shared/sidebar-list/group-keys'
 import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
 import {
@@ -171,50 +171,53 @@ export function renderWorktreeItemRow(
         paddingLeft: surfaceInset > 0 ? `${surfaceInset}px` : undefined
       }}
     >
-      <WorktreeCard
-        worktree={itemRow.worktree}
-        repo={itemRow.repo}
-        isActive={isActiveWorktree}
-        isCurrentWorktree={ctx.currentWorktreeId === itemRow.worktree.id}
-        // Why: a child-active parent should look active without the active-card side effects (e.g. SSH reconnect UI).
-        isActiveSurface={forceActiveSurface || isActiveWorktree}
-        activeSurfaceVariant={
-          isActiveWorktree && !forceActiveSurface ? ctx.getActiveSurfaceVariant(itemRow) : 'primary'
-        }
-        isMultiSelected={ctx.selectedWorktreeIds.has(worktreeIdentity)}
-        revealHighlight={ctx.highlightedRevealRowKey === itemRow.rowKey}
-        revealHighlightTone={
-          ctx.agentSendTargetWorktreeId === itemRow.worktree.id ? 'ai' : 'default'
-        }
-        selectedWorktrees={ctx.selectedWorktrees}
-        nativeDragEnabled={false}
-        isLineageDropTarget={Boolean(isLineageDropTarget)}
-        contentIndent={cardContentIndent}
-        flushSurface
-        activationRowKey={itemRow.rowKey}
-        onImmediateActivate={ctx.onImmediateActivate}
-        onSelectionGesture={ctx.onSelectionGesture}
-        onWorktreeCardClick={ctx.onWorktreeCardClick}
-        onContextMenuSelect={ctx.onContextMenuSelect}
-        onCardDragStart={ctx.onCardDragStart}
-        onCardDragEnd={ctx.onCardDragEnd}
-        hideRepoBadge={ctx.groupBy === 'repo' && !itemRow.showProjectName}
-        // Why: pinned worktrees mix repos; cross-repo children opt into the existing project-name badge.
-        hostContextLabel={itemRow.hostContextLabel}
-        showProjectName={itemRow.showProjectName}
-        inPinnedSection={itemRow.sectionKey === PINNED_GROUP_KEY}
-        renameRowKey={itemRow.rowKey}
-        lineageChildCount={itemRow.lineageChildCount}
-        lineageCollapsed={itemRow.lineageCollapsed}
-        lineageChildren={lineageChildren}
-        lineageChildrenStyle={lineageChildrenStyle}
-        onLineageToggle={
-          itemRow.lineageGroupKey ? ctx.getLineageToggleHandler(itemRow.lineageGroupKey) : undefined
-        }
-      />
-      <div onPointerDown={stopNestedWorktreeCardBubble} onClick={stopNestedWorktreeCardBubble}>
-        <WorktreeContainerCards worktree={itemRow.worktree} />
-      </div>
+      <WorktreeContainerBox worktree={itemRow.worktree}>
+        <WorktreeCard
+          worktree={itemRow.worktree}
+          repo={itemRow.repo}
+          isActive={isActiveWorktree}
+          isCurrentWorktree={ctx.currentWorktreeId === itemRow.worktree.id}
+          // Why: a child-active parent should look active without the active-card side effects (e.g. SSH reconnect UI).
+          isActiveSurface={forceActiveSurface || isActiveWorktree}
+          activeSurfaceVariant={
+            isActiveWorktree && !forceActiveSurface
+              ? ctx.getActiveSurfaceVariant(itemRow)
+              : 'primary'
+          }
+          isMultiSelected={ctx.selectedWorktreeIds.has(worktreeIdentity)}
+          revealHighlight={ctx.highlightedRevealRowKey === itemRow.rowKey}
+          revealHighlightTone={
+            ctx.agentSendTargetWorktreeId === itemRow.worktree.id ? 'ai' : 'default'
+          }
+          selectedWorktrees={ctx.selectedWorktrees}
+          nativeDragEnabled={false}
+          isLineageDropTarget={Boolean(isLineageDropTarget)}
+          contentIndent={cardContentIndent}
+          flushSurface
+          activationRowKey={itemRow.rowKey}
+          onImmediateActivate={ctx.onImmediateActivate}
+          onSelectionGesture={ctx.onSelectionGesture}
+          onWorktreeCardClick={ctx.onWorktreeCardClick}
+          onContextMenuSelect={ctx.onContextMenuSelect}
+          onCardDragStart={ctx.onCardDragStart}
+          onCardDragEnd={ctx.onCardDragEnd}
+          hideRepoBadge={ctx.groupBy === 'repo' && !itemRow.showProjectName}
+          // Why: pinned worktrees mix repos; cross-repo children opt into the existing project-name badge.
+          hostContextLabel={itemRow.hostContextLabel}
+          showProjectName={itemRow.showProjectName}
+          inPinnedSection={itemRow.sectionKey === PINNED_GROUP_KEY}
+          renameRowKey={itemRow.rowKey}
+          lineageChildCount={itemRow.lineageChildCount}
+          lineageCollapsed={itemRow.lineageCollapsed}
+          lineageChildren={lineageChildren}
+          lineageChildrenStyle={lineageChildrenStyle}
+          onLineageToggle={
+            itemRow.lineageGroupKey
+              ? ctx.getLineageToggleHandler(itemRow.lineageGroupKey)
+              : undefined
+          }
+        />
+      </WorktreeContainerBox>
     </div>
   )
 }
