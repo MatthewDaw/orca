@@ -41,6 +41,14 @@ describe('workspace container catalog', () => {
     expect(positions.size).toBe(topLevel.length)
   })
 
+  it('retargets a container with its nested containers and releases their tabs', () => {
+    let catalog = updateContainer(seed(), 'a', { tabIds: ['t1'] }, 5)
+    catalog = updateContainer(catalog, 'a', { worktreeId: 'wt-2' }, 6)
+    const byId = new Map(catalog.containers.map((c) => [c.id, c]))
+    expect(byId.get('a')).toMatchObject({ worktreeId: 'wt-2', tabIds: [], parentContainerId: null })
+    expect(byId.get('b')).toMatchObject({ worktreeId: 'wt-2', parentContainerId: 'a' })
+  })
+
   it('rejects a parent from another worktree', () => {
     expect(() =>
       createContainer(seed(), { worktreeId: 'wt-1', name: 'x', parentContainerId: 'c' }, 'd', 4)

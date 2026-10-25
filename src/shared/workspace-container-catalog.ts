@@ -58,10 +58,15 @@ export function updateContainer(
   patch: WorkspaceContainerPatch,
   now: number
 ): WorkspaceContainerCatalog {
-  const target = catalog.containers.find((c) => c.id === id)
-  if (!target) {
+  const found = catalog.containers.find((c) => c.id === id)
+  if (!found) {
     return catalog
   }
+  if (patch.worktreeId !== undefined && patch.worktreeId !== found.worktreeId) {
+    const { worktreeId, ...rest } = patch
+    return updateContainer(retargetContainerSubtree(catalog, id, worktreeId, now), id, rest, now)
+  }
+  const target = found
   if (patch.parentContainerId !== undefined && patch.parentContainerId !== null) {
     assertValidParent(catalog, target, patch.parentContainerId)
   }
@@ -82,6 +87,40 @@ export function updateContainer(
     return c
   })
   return { ...catalog, containers }
+}
+
+// Tabs live on one worktree, so pointing a container elsewhere releases its tabs; nested
+// containers move with it to keep the same-worktree nesting invariant.
+function retargetContainerSubtree(
+  catalog: WorkspaceContainerCatalog,
+  id: string,
+  worktreeId: string,
+  now: number
+): WorkspaceContainerCatalog {
+  const moving = new Set([id])
+  for (let grew = true; grew;) {
+    grew = false
+    for (const c of catalog.containers) {
+      if (c.parentContainerId && moving.has(c.parentContainerId) && !moving.has(c.id)) {
+        moving.add(c.id)
+        grew = true
+      }
+    }
+  }
+  return {
+    ...catalog,
+    containers: catalog.containers.map((c) =>
+      moving.has(c.id)
+        ? {
+            ...c,
+            worktreeId,
+            tabIds: [],
+            parentContainerId: c.id === id ? null : c.parentContainerId,
+            updatedAt: now
+          }
+        : c
+    )
+  }
 }
 
 export function assignTabsToContainer(

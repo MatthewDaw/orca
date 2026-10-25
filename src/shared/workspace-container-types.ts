@@ -33,7 +33,7 @@ export type WorkspaceContainerCreateInput = {
 export type WorkspaceContainerPatch = Partial<
   Pick<
     WorkspaceContainer,
-    'name' | 'parentContainerId' | 'tabIds' | 'focus' | 'connections' | 'position'
+    'name' | 'worktreeId' | 'parentContainerId' | 'tabIds' | 'focus' | 'connections' | 'position'
   >
 >
 

@@ -7,6 +7,7 @@ import type { Worktree } from '../../../../../../shared/worktree/types'
 import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-qualified-identity'
 import { isActiveSidebarWorkspace } from '../../../../../../shared/sidebar-list/active-workspace'
 import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'
+import { WorktreeContainerCards } from '../../WorktreeContainerCards'
 import { PINNED_GROUP_KEY } from '../../../../../../shared/sidebar-list/group-keys'
 import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
 import {
@@ -211,6 +212,9 @@ export function renderWorktreeItemRow(
           itemRow.lineageGroupKey ? ctx.getLineageToggleHandler(itemRow.lineageGroupKey) : undefined
         }
       />
+      <div onPointerDown={stopNestedWorktreeCardBubble} onClick={stopNestedWorktreeCardBubble}>
+        <WorktreeContainerCards worktree={itemRow.worktree} />
+      </div>
     </div>
   )
 }
