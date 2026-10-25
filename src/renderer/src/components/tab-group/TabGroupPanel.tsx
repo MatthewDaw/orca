@@ -3,6 +3,7 @@ import { lazyWithRetry as lazy } from '@/lib/lazy-with-retry'
 import { useDroppable } from '@dnd-kit/core'
 import { useAppStore } from '../../store'
 import TabBar from '../tab-bar/TabBar'
+import { useContainerTabFilter } from '../tab-bar/use-container-tab-filter'
 
 import { TabBarQuickCommandsButton } from '../tab-bar/TabBarQuickCommandsButton'
 import { TabGroupPaneActionsMenu } from './TabGroupPaneActionsMenu'
@@ -71,6 +72,7 @@ export default function TabGroupPanel({
   const rightSidebarOpen = useAppStore((state) => state.rightSidebarOpen)
   const sidebarOpen = useAppStore((state) => state.sidebarOpen)
   const model = useTabGroupWorkspaceModel({ groupId, worktreeId })
+  const containerTabFilter = useContainerTabFilter(worktreeId)
   const {
     activeTab,
     agentSessionItems,
@@ -335,6 +337,16 @@ export default function TabGroupPanel({
             className="pointer-events-none absolute inset-x-0 top-1/4 h-px"
             data-contextual-tour-target="workspace-agent-terminal-tip"
           />
+        ) : null}
+        {/* Why: containers isolate sessions, but panes render at worktree level and would otherwise
+            show the worktree's active tab even when it belongs to another container. */}
+        {containerTabFilter && !(activeTab && containerTabFilter.has(activeTab.id)) ? (
+          <div
+            data-container-empty-state=""
+            className="absolute inset-0 z-[60] flex items-center justify-center bg-background text-sm text-muted-foreground"
+          >
+            This container has no open tab here. Press + to start a session.
+          </div>
         ) : null}
         {activeTab &&
           activeTab.contentType !== 'terminal' &&

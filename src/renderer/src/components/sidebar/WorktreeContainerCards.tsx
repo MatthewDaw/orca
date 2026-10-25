@@ -25,6 +25,27 @@ import {
 const NO_CONTAINERS: readonly WorkspaceContainer[] = []
 const NO_WORKTREES: readonly Worktree[] = []
 
+let draggedContainerId: string | null = null
+
+// Why: dropping a card on another nests it; a different worktree retargets it first, and a
+// rejected drop (cycle) is simply ignored.
+async function nestContainer(id: string, parentId: string | null): Promise<void> {
+  const { workspaceContainers, updateWorkspaceContainer } = useAppStore.getState()
+  const parent = parentId ? workspaceContainers.find((c) => c.id === parentId) : undefined
+  const dragged = workspaceContainers.find((c) => c.id === id)
+  if (!dragged || id === parentId || (parentId && !parent)) {
+    return
+  }
+  try {
+    if (parent && parent.worktreeId !== dragged.worktreeId) {
+      await updateWorkspaceContainer(id, { worktreeId: parent.worktreeId })
+    }
+    await updateWorkspaceContainer(id, { parentContainerId: parentId })
+  } catch {
+    // Invalid nesting (e.g. into its own descendant): leave the tree unchanged.
+  }
+}
+
 const stopBubble = (event: React.SyntheticEvent): void => event.stopPropagation()
 
 function ContainerCard({
@@ -85,6 +106,29 @@ function ContainerCard({
           <div
             role="button"
             tabIndex={0}
+            draggable={!renaming}
+            onDragStart={(event) => {
+              draggedContainerId = container.id
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('text/plain', container.id)
+            }}
+            onDragEnd={() => {
+              draggedContainerId = null
+            }}
+            onDragOver={(event) => {
+              if (draggedContainerId && draggedContainerId !== container.id) {
+                event.preventDefault()
+                event.stopPropagation()
+              }
+            }}
+            onDrop={(event) => {
+              if (draggedContainerId && draggedContainerId !== container.id) {
+                event.preventDefault()
+                event.stopPropagation()
+                void nestContainer(draggedContainerId, container.id)
+                draggedContainerId = null
+              }
+            }}
             data-workspace-container-id={container.id}
             aria-current={active ? 'true' : undefined}
             className={cn(
@@ -204,7 +248,19 @@ export function WorktreeContainerCards({
     return null
   }
   return (
-    <div className="mt-1 space-y-1" data-worktree-container-cards="">
+    <div
+      className="mt-1 space-y-1"
+      data-worktree-container-cards=""
+      onDragOver={(event) => draggedContainerId && event.preventDefault()}
+      onDrop={(event) => {
+        // Why: dropping on empty space between cards moves a nested container back to the top level.
+        if (draggedContainerId) {
+          event.preventDefault()
+          void nestContainer(draggedContainerId, null)
+          draggedContainerId = null
+        }
+      }}
+    >
       {tree.map((node) => (
         <ContainerCard
           key={node.container.id}
