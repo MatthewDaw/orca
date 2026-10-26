@@ -169,6 +169,7 @@ export function deferSendWhileUserComposes(
     text?: string
     enter?: unknown
     interrupt?: unknown
+    agentPrompt?: true
     deferWhileUserTyping?: true
   },
   ptyId: string | null | undefined
@@ -184,9 +185,22 @@ export function deferSendWhileUserComposes(
     return null
   }
   void waitUntilUserStopsComposing(ptyId)
-    .then(() =>
-      runtime.sendTerminal(terminal, { text, enter, interrupt: false }, { inputKind: 'driving' })
-    )
+    .then(async () => {
+      // Why: same paste-then-submit path an immediate send takes, so a queued message is sent, not left in the box.
+      if (
+        params.agentPrompt &&
+        text &&
+        enter &&
+        (await runtime.isTerminalRunningSettledPromptAgent(terminal))
+      ) {
+        return runtime.sendTerminalAgentPrompt(terminal, text, { inputKind: 'driving' })
+      }
+      return runtime.sendTerminal(
+        terminal,
+        { text, enter, interrupt: false },
+        { inputKind: 'driving' }
+      )
+    })
     .catch(() => undefined)
   return { send: { handle: terminal, accepted: true, bytesWritten: 0, queued: true } }
 }

@@ -28,6 +28,21 @@ export function resolveRememberedTab(
   return remembered && spaceTabIds.has(remembered) && liveTabIds.has(remembered) ? remembered : null
 }
 
+// The leftmost tab of a space, by the visual order of its tab groups; a space opened for the
+// first time lands here.
+export function leftmostTabOfSpace(
+  tabOrders: readonly (readonly string[])[],
+  spaceTabIds: ReadonlySet<string>
+): string | null {
+  for (const order of tabOrders) {
+    const found = order.find((id) => spaceTabIds.has(id))
+    if (found) {
+      return found
+    }
+  }
+  return null
+}
+
 // Why: the tab strip shows only the selected container's tabs, so reselecting one should land on
 // the agent that was open when the person left it, not whichever tab the worktree last focused.
 export function installContainerActiveTabMemory(): () => void {
@@ -50,11 +65,13 @@ export function installContainerActiveTabMemory(): () => void {
       )
       const key = containerSpaceKey(worktreeId, containerId)
       if ((handledActive[worktreeId] ?? null) !== (containerId ?? null)) {
-        const target = resolveRememberedTab(
-          lastTabBySpace.get(key),
-          spaceTabIds,
-          new Set(tabs.map((tab) => tab.id))
-        )
+        const liveTabIds = new Set(tabs.map((tab) => tab.id))
+        const target =
+          resolveRememberedTab(lastTabBySpace.get(key), spaceTabIds, liveTabIds) ??
+          leftmostTabOfSpace(
+            (state.groupsByWorktree[worktreeId] ?? []).map((g) => g.tabOrder),
+            new Set([...spaceTabIds].filter((id) => liveTabIds.has(id)))
+          )
         if (target) {
           state.activateTab(target, { worktreeId })
         }

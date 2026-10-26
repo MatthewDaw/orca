@@ -5,7 +5,7 @@
 // delivery forever.
 export const DRAFT_ABANDONED_AFTER_MS = 300_000
 const MAX_DEFER_MS = 10 * 60_000
-const POLL_MS = 250
+const POLL_MS = 100
 
 type DraftState = { chars: number; lastInputAt: number }
 

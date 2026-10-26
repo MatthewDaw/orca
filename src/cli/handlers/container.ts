@@ -125,6 +125,9 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
       ),
       enter: true,
       interrupt: false,
+      // Why: an agent TUI reads text plus Enter in one write as a paste and keeps the Enter as a
+      // newline; the agent-prompt path pastes, then submits, so the message goes out at once.
+      agentPrompt: true,
       // Why: never type into a person's half-written message; it waits until they send or clear it.
       deferWhileUserTyping: true,
       client: { id: 'orca-cli', type: 'desktop' }

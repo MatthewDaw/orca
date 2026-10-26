@@ -119,7 +119,6 @@ function ContainerCard({
       s.activeContainerIdByWorktree?.[container.worktreeId] === container.id
   )
   const setActive = useAppStore((s) => s.setActiveWorkspaceContainer)
-  const activateTab = useAppStore((s) => s.activateTab)
   const update = useAppStore((s) => s.updateWorkspaceContainer)
   const remove = useAppStore((s) => s.removeWorkspaceContainer)
   const target = repoWorktrees.find((w) => w.id === container.worktreeId)
@@ -138,11 +137,8 @@ function ContainerCard({
       },
       { screenArrived: false }
     )
+    // Why: which tab shows is decided by the container's remembered (or leftmost) tab, not here.
     void activateWorktreeFromSidebar(container.worktreeId)
-    const firstTabId = container.tabIds[0]
-    if (firstTabId) {
-      activateTab(firstTabId)
-    }
   }
 
   const commitRename = (): void => {
@@ -243,6 +239,7 @@ function ContainerCard({
                 </span>
               )}
               <ContainerUnreadBell
+                own={container}
                 containers={childrenCollapsed ? flattenNode(node) : [container]}
               />
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">

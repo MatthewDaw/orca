@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { useAppStore } from '.'
 import {
   installContainerActiveTabMemory,
+  leftmostTabOfSpace,
   resolveRememberedTab,
   tabIdsOfSpace
 } from './workspace-container-active-tab-memory'
@@ -75,5 +76,13 @@ describe('installContainerActiveTabMemory', () => {
     useAppStore.setState({ activeContainerIdByWorktree: { wt: 'b' } })
     expect(activateTab.mock.calls.length).toBeLessThanOrEqual(2)
     stop()
+  })
+})
+
+describe('leftmostTabOfSpace', () => {
+  it('picks the first tab of the space in visual order', () => {
+    expect(leftmostTabOfSpace([['x', 't2', 't1']], new Set(['t1', 't2']))).toBe('t2')
+    expect(leftmostTabOfSpace([['x'], ['t1']], new Set(['t1']))).toBe('t1')
+    expect(leftmostTabOfSpace([['x']], new Set(['t1']))).toBeNull()
   })
 })

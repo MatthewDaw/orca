@@ -24,12 +24,17 @@ export const BELL_SETTLE_MS = 3000
 
 type PaneStatusRow = { state: string; stateStartedAt: number }
 
-export type ContainerBell = { ringing: boolean; settleAt: number | null }
+export type ContainerBell = {
+  // 'finished' rings the bell, 'working' shows a solid dot, null means nothing to report.
+  indicator: 'finished' | 'working' | null
+  settleAt: number | null
+}
 
 const tabOfPane = (paneKey: string): string => paneKey.split(':')[0] ?? ''
 
-// The bell means "stopped and not yet looked at": an unread finish marker, no pane of that tab
-// working now, and the agent quiet for a few seconds so a pause between turns never rings it.
+// Three states: an agent is working (dot); one has stopped and nobody has looked yet (bell);
+// or nothing, including a finish already seen. A bell needs an unread finish marker, no working
+// pane in that tab, and a short quiet period so a pause between turns never rings it.
 // `settleAt` is when a just-stopped agent will start ringing, so the caller can re-check then.
 export function containerBell(
   container: WorkspaceContainer,
@@ -38,19 +43,24 @@ export function containerBell(
   now: number
 ): ContainerBell {
   const tabIds = new Set([...container.tabIds, ...(container.terminalTabIds ?? [])])
+  const rowsOf = (tabId: string): [string, PaneStatusRow | undefined][] =>
+    Object.entries(statusByPaneKey).filter(([key]) => tabOfPane(key) === tabId)
+  const isWorking = (tabId: string): boolean =>
+    rowsOf(tabId).some(([, row]) => row?.state === 'working')
   const unreadTabs = new Set(unreadPaneKeys.map(tabOfPane).filter((tabId) => tabIds.has(tabId)))
   let settleAt: number | null = null
   for (const tabId of unreadTabs) {
-    const rows = Object.entries(statusByPaneKey).filter(([key]) => tabOfPane(key) === tabId)
-    if (rows.some(([, row]) => row?.state === 'working')) {
+    const rows = rowsOf(tabId)
+    if (isWorking(tabId)) {
       continue
     }
     const quietSince = Math.max(0, ...rows.map(([, row]) => row?.stateStartedAt ?? 0))
     const readyAt = quietSince + BELL_SETTLE_MS
     if (readyAt <= now) {
-      return { ringing: true, settleAt: null }
+      return { indicator: 'finished', settleAt: null }
     }
     settleAt = Math.min(settleAt ?? readyAt, readyAt)
   }
-  return { ringing: false, settleAt }
+  const working = [...tabIds].some(isWorking)
+  return { indicator: working ? 'working' : null, settleAt }
 }

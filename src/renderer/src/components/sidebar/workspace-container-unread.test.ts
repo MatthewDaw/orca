@@ -46,24 +46,35 @@ describe('containerBell', () => {
     state,
     stateStartedAt: now - startedAgo
   })
+  const indicator = (
+    unread: string[],
+    statuses: Record<string, { state: string; stateStartedAt: number }>
+  ) => containerBell(container, unread, statuses, now).indicator
 
-  it('stays silent while the agent is working, even with a finish marker', () => {
-    expect(
-      containerBell(container, ['t1:a'], { 't1:a': quiet('working', 60_000) }, now).ringing
-    ).toBe(false)
+  it('shows the working dot, never the bell, while an agent works', () => {
+    expect(indicator(['t1:a'], { 't1:a': quiet('working', 60_000) })).toBe('working')
+    expect(indicator([], { 't1:a': quiet('working', 60_000) })).toBe('working')
   })
 
   it('rings once the agent has been stopped for a few seconds', () => {
-    const stopped = { 't1:a': quiet('done', BELL_SETTLE_MS + 1) }
-    expect(containerBell(container, ['t1:a'], stopped, now).ringing).toBe(true)
+    expect(indicator(['t1:a'], { 't1:a': quiet('done', BELL_SETTLE_MS + 1) })).toBe('finished')
   })
 
   it('waits out a fresh stop and says when it will ring', () => {
     const bell = containerBell(container, ['t1:a'], { 't1:a': quiet('done', 500) }, now)
-    expect(bell).toEqual({ ringing: false, settleAt: now - 500 + BELL_SETTLE_MS })
+    expect(bell).toEqual({ indicator: null, settleAt: now - 500 + BELL_SETTLE_MS })
   })
 
-  it('is silent with no finish marker', () => {
-    expect(containerBell(container, [], { 't1:a': quiet('done', 60_000) }, now).ringing).toBe(false)
+  it('shows nothing once a finish has been seen', () => {
+    expect(indicator([], { 't1:a': quiet('done', 60_000) })).toBeNull()
+  })
+
+  it('shows working while any pane of the tab still works', () => {
+    expect(
+      indicator(['t1:a'], {
+        't1:a': quiet('done', 60_000),
+        't1:b': quiet('working', 1000)
+      })
+    ).toBe('working')
   })
 })
