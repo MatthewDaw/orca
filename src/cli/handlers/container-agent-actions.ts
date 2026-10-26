@@ -8,6 +8,8 @@ import {
   isContainerWithin,
   resolveContainerRef
 } from '../../shared/workspace-container-routing'
+import { ALL_TUI_AGENTS } from '../../shared/tui-agent-display-names'
+import type { RuntimeTerminalListResult } from '../../shared/runtime-terminal-contracts'
 import type { HandlerContext } from '../dispatch'
 import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
 import { RuntimeClientError } from '../runtime-client'
@@ -109,7 +111,10 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
   )
   const agent = getRequiredStringFlag(ctx.flags, 'agent')
   if (!isContainerLaunchAgent(agent)) {
-    throw new RuntimeClientError('invalid_argument', '--agent must be "claude" or "codex".')
+    throw new RuntimeClientError(
+      'invalid_argument',
+      `--agent must be one of: ${ALL_TUI_AGENTS.join(', ')}.`
+    )
   }
   if (requesterId && !isContainerWithin(catalog, requesterId, target.id)) {
     throw new RuntimeClientError(
@@ -126,5 +131,68 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
   })
   console.log(
     `Requested a new ${agent} session in ${describeContainerPath(catalog, target)}. Once it is up, reach it with \`orca container message --to "${describeContainerPath(catalog, target)}"\`.`
+  )
+}
+
+async function terminalsInContainer(
+  ctx: HandlerContext,
+  container: WorkspaceContainerCatalog['containers'][number]
+): Promise<RuntimeTerminalListResult['terminals']> {
+  const listed = await ctx.client.call<RuntimeTerminalListResult>('terminal.list', {
+    worktree: `id:${container.worktreeId}`,
+    includeVisualLayouts: false
+  })
+  const owned = new Set(container.terminalTabIds ?? [])
+  return listed.result.terminals.filter((t) => owned.has(t.tabId))
+}
+
+export async function listContainerAgents(ctx: HandlerContext): Promise<void> {
+  const catalog = await readCatalog()
+  const target = requireContainer(
+    catalog,
+    getOptionalStringFlag(ctx.flags, 'container') ?? process.env.ORCA_CONTAINER_ID,
+    '--container'
+  )
+  const terminals = await terminalsInContainer(ctx, target)
+  if (ctx.json) {
+    console.log(
+      JSON.stringify({ container: describeContainerPath(catalog, target), terminals }, null, 2)
+    )
+    return
+  }
+  console.log(describeContainerPath(catalog, target))
+  for (const t of terminals) {
+    const mine = t.tabId === process.env.ORCA_TAB_ID ? ' (you)' : ''
+    console.log(`  ${t.handle}\t${t.agentIdentity ?? 'terminal'}\t${t.title ?? ''}${mine}`)
+  }
+  if (terminals.length === 0) {
+    console.log('  No open terminals.')
+  }
+}
+
+export async function closeContainerAgent(ctx: HandlerContext): Promise<void> {
+  const catalog = await readCatalog()
+  const handle = getRequiredStringFlag(ctx.flags, 'terminal')
+  const requesterId = process.env.ORCA_CONTAINER_ID
+  for (const container of catalog.containers) {
+    if (requesterId && !isContainerWithin(catalog, requesterId, container.id)) {
+      continue
+    }
+    const terminal = (await terminalsInContainer(ctx, container)).find((t) => t.handle === handle)
+    if (!terminal) {
+      continue
+    }
+    if (terminal.tabId === process.env.ORCA_TAB_ID) {
+      throw new RuntimeClientError('invalid_argument', 'You cannot close your own session.')
+    }
+    await ctx.client.call('terminal.closeTab', { terminal: handle })
+    console.log(
+      `Closed ${terminal.agentIdentity ?? 'terminal'} ${handle} in ${describeContainerPath(catalog, container)}.`
+    )
+    return
+  }
+  throw new RuntimeClientError(
+    'selector_not_found',
+    `No terminal ${handle} in your container or ones nested under it. Run \`orca container agents\` for handles.`
   )
 }

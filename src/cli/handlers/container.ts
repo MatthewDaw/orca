@@ -17,9 +17,11 @@ import {
 } from '../../shared/workspace-container-routing'
 import { containerDirectory, readCatalog } from './container-catalog-file'
 import {
+  closeContainerAgent,
   createChildContainer,
   deleteContainer,
-  launchContainerAgent
+  launchContainerAgent,
+  listContainerAgents
 } from './container-agent-actions'
 import type { CommandHandler, HandlerContext } from '../dispatch'
 import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
@@ -196,6 +198,8 @@ export const CONTAINER_HANDLERS: Record<string, CommandHandler> = {
   'container context': printContext,
   'container message': sendContainerMessage,
   'container create': createChildContainer,
+  'container agents': listContainerAgents,
+  'container close-agent': closeContainerAgent,
   'container rm': deleteContainer,
   'container launch': launchContainerAgent,
   'container brief': (ctx) => showOrSetContainerText(ctx, 'brief'),

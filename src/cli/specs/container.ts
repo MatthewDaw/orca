@@ -99,9 +99,9 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
   },
   {
     path: ['container', 'launch'],
-    summary: 'Start a new Claude or Codex session inside a container',
+    summary: 'Start a new agent session (Claude, Codex, ...) inside a container',
     usage:
-      'orca container launch --agent <claude|codex> [--container <container>] [--prompt <text>] [--json]',
+      'orca container launch --agent <name> [--container <container>] [--prompt <text>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'agent', 'container', 'prompt'],
     notes: [
       "Opens a new agent tab in the container without changing the person's selection. Without --container, uses this terminal's container; only your container and ones nested under it are allowed.",
@@ -111,5 +111,29 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
     examples: [
       'orca container launch --container "computer_vision/basketball/shot-arc" --agent codex --prompt "Build the shot-arc overlay"'
     ]
+  },
+  {
+    path: ['container', 'agents'],
+    summary: 'List the open agent sessions in a container with the handles you can close',
+    usage: 'orca container agents [--container <container>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'container'],
+    notes: [
+      "Without --container, lists this terminal's container. Your own session is marked (you)."
+    ],
+    examples: [
+      'orca container agents',
+      'orca container agents --container "computer_vision/basketball"'
+    ]
+  },
+  {
+    path: ['container', 'close-agent'],
+    summary: 'Close one agent session in your container or one nested under it',
+    usage: 'orca container close-agent --terminal <handle> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'terminal'],
+    notes: [
+      'Get the handle from `orca container agents`. Closes the whole tab and ends the session; you cannot close your own.',
+      'Works for any agent type, so a codex agent can close a claude one and the reverse.'
+    ],
+    examples: ['orca container close-agent --terminal term_abc123']
   }
 ]
