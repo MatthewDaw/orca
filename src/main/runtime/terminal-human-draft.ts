@@ -3,7 +3,7 @@
 
 // A draft untouched this long is treated as abandoned, so a forgotten half-line cannot block
 // delivery forever.
-export const DRAFT_ABANDONED_AFTER_MS = 120_000
+export const DRAFT_ABANDONED_AFTER_MS = 300_000
 const MAX_DEFER_MS = 10 * 60_000
 const POLL_MS = 250
 
