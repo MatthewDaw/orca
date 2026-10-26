@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { useAppStore } from './store'
 import { installWorkspaceContainerReparentNotify } from './store/workspace-container-reparent-notify'
 import { installContainerAgentRequests } from './store/workspace-container-agent-requests'
+import { installContainerActiveTabMemory } from './store/workspace-container-active-tab-memory'
 import { installAgentAutoResume } from './store/workspace-agent-auto-resume'
 import { installWorkspaceContainerTabSync } from './store/workspace-container-tab-sync'
 import { installWorkspaceContainerBlueprintSync } from './store/workspace-container-blueprint-sync'
@@ -83,10 +84,12 @@ function App(): React.JSX.Element {
     const stopReparentNotify = installWorkspaceContainerReparentNotify()
     const stopAgentAutoResume = installAgentAutoResume()
     const stopAgentRequests = installContainerAgentRequests()
+    const stopActiveTabMemory = installContainerActiveTabMemory()
     return () => {
       stopTabSync()
       stopBlueprintSync()
       stopAgentRequests()
+      stopActiveTabMemory()
       stopReparentNotify()
       stopAgentAutoResume()
     }
