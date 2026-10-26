@@ -3,6 +3,7 @@ import {
   formatContainerMessage,
   inheritedBriefs,
   inheritedCodeScopes,
+  isContainerWithin,
   pickTargetTerminal,
   resolveContainerRef
 } from './workspace-container-routing'
@@ -176,5 +177,34 @@ describe('formatContainerMessage', () => {
     const text = formatContainerMessage(catalog, catalog.containers[0]!, 'build it')
     expect(text).toContain('computer_vision › basketball')
     expect(text).toContain('--to "cv-bb"')
+  })
+})
+
+describe('isContainerWithin', () => {
+  const make = (id: string, parent: string | null) => ({
+    id,
+    worktreeId: 'w',
+    name: id,
+    parentContainerId: parent,
+    tabIds: [],
+    focus: '',
+    connections: [],
+    position: { x: 0, y: 0 },
+    createdAt: 0,
+    updatedAt: 0
+  })
+  const catalog = {
+    version: 1 as const,
+    containers: [make('a', null), make('b', 'a'), make('c', 'b'), make('d', null)]
+  }
+
+  it('covers the container itself and everything nested under it, at any depth', () => {
+    expect(isContainerWithin(catalog, 'a', 'a')).toBe(true)
+    expect(isContainerWithin(catalog, 'a', 'c')).toBe(true)
+  })
+
+  it('excludes ancestors and unrelated containers', () => {
+    expect(isContainerWithin(catalog, 'c', 'a')).toBe(false)
+    expect(isContainerWithin(catalog, 'a', 'd')).toBe(false)
   })
 })

@@ -66,6 +66,27 @@ export function inheritedBriefs(
   }))
 }
 
+// Agents may only reshape their own subtree: `ancestorId` itself, or any container nested under it.
+export function isContainerWithin(
+  catalog: WorkspaceContainerCatalog,
+  ancestorId: string,
+  containerId: string
+): boolean {
+  const byId = new Map(catalog.containers.map((c) => [c.id, c]))
+  const seen = new Set<string>()
+  for (
+    let cursor = byId.get(containerId);
+    cursor && !seen.has(cursor.id);
+    cursor = cursor.parentContainerId ? byId.get(cursor.parentContainerId) : undefined
+  ) {
+    if (cursor.id === ancestorId) {
+      return true
+    }
+    seen.add(cursor.id)
+  }
+  return false
+}
+
 export function describeContainerPath(
   catalog: WorkspaceContainerCatalog,
   container: WorkspaceContainer

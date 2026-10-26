@@ -1,3 +1,4 @@
+import type { ContainerAgentRequest } from '../shared/workspace-container-agent-request'
 import type {
   ClaudeAccountsApi,
   CodexAccountsApi,
@@ -85,6 +86,7 @@ export type WorkspaceContainersApi = {
   releaseTab: (tabId: string) => Promise<WorkspaceContainerCatalog>
   getContextPagePath: (id: string) => Promise<string>
   onChanged: (callback: (catalog: WorkspaceContainerCatalog) => void) => () => void
+  onAgentRequest: (callback: (request: ContainerAgentRequest) => void) => () => void
 }
 import type { LocalhostWorktreeLabelsApi, WorkspacePortsApi } from './api/workspace-port-api'
 import type { WorkspaceSessionApi } from './api/workspace-session-api'

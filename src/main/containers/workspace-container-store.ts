@@ -24,6 +24,9 @@ import {
   type WorkspaceContainerPatch
 } from '../../shared/workspace-container-types'
 
+const MAX_CHILD_NAME_CHARS = 60
+const MAX_AGENT_CHILDREN = 12
+
 export function getWorkspaceContainerDirectory(home: string = homedir()): string {
   return join(home, '.orca', 'containers')
 }
@@ -94,6 +97,42 @@ export class WorkspaceContainerStore {
         c.id === id ? { ...c, codeScope: text.trim(), updatedAt: now } : c
       )
     }))
+    return { ok: true }
+  }
+
+  // Agent-requested child container; it lives on the parent's worktree and cannot duplicate a sibling's name.
+  async applyAgentChildCreate(
+    parentId: string,
+    name: string,
+    focus: string
+  ): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const catalog = await this.load()
+    const parent = catalog.containers.find((c) => c.id === parentId)
+    const trimmed = name.trim()
+    if (!parent) {
+      return { ok: false, reason: 'Unknown parent container.' }
+    }
+    if (!trimmed || trimmed.length > MAX_CHILD_NAME_CHARS) {
+      return { ok: false, reason: `Name must be 1-${MAX_CHILD_NAME_CHARS} characters.` }
+    }
+    const siblings = catalog.containers.filter((c) => c.parentContainerId === parentId)
+    if (siblings.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
+      return { ok: false, reason: `"${parent.name}" already has a child named "${trimmed}".` }
+    }
+    if (siblings.length >= MAX_AGENT_CHILDREN) {
+      return { ok: false, reason: `"${parent.name}" already has ${MAX_AGENT_CHILDREN} children.` }
+    }
+    const id = randomUUID()
+    const now = Date.now()
+    await this.mutate((current) => {
+      const created = createContainer(
+        current,
+        { worktreeId: parent.worktreeId, name: trimmed, parentContainerId: parentId },
+        id,
+        now
+      )
+      return focus.trim() ? updateContainer(created, id, { focus: focus.trim() }, now) : created
+    })
     return { ok: true }
   }
 

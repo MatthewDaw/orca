@@ -1,8 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { WorkspaceContainerCatalog } from '../../shared/workspace-container-types'
 import {
   BRIEF_MAX_CHARS,
   checkAgentBriefUpdate,
@@ -17,19 +15,15 @@ import {
   pickTargetTerminal,
   resolveContainerRef
 } from '../../shared/workspace-container-routing'
+import { containerDirectory, readCatalog } from './container-catalog-file'
+import {
+  createChildContainer,
+  deleteContainer,
+  launchContainerAgent
+} from './container-agent-actions'
 import type { CommandHandler, HandlerContext } from '../dispatch'
 import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
 import { RuntimeClientError } from '../runtime-client'
-
-const containerDirectory = (): string => join(homedir(), '.orca', 'containers')
-
-async function readCatalog(): Promise<WorkspaceContainerCatalog> {
-  try {
-    return JSON.parse(await readFile(join(containerDirectory(), 'catalog.json'), 'utf8'))
-  } catch {
-    return { version: 1, containers: [] }
-  }
-}
 
 async function listContainers(ctx: HandlerContext): Promise<void> {
   const { containers } = await readCatalog()
@@ -201,6 +195,9 @@ export const CONTAINER_HANDLERS: Record<string, CommandHandler> = {
   'container list': listContainers,
   'container context': printContext,
   'container message': sendContainerMessage,
+  'container create': createChildContainer,
+  'container rm': deleteContainer,
+  'container launch': launchContainerAgent,
   'container brief': (ctx) => showOrSetContainerText(ctx, 'brief'),
   'container scope': (ctx) => showOrSetContainerText(ctx, 'codeScope')
 }

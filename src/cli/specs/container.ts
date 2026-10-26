@@ -69,5 +69,47 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
       'orca container brief',
       'orca container brief --set "Use the repository pattern; mock the clock in tests."'
     ]
+  },
+  {
+    path: ['container', 'create'],
+    summary: 'Create a child container under this container (or another one)',
+    usage: 'orca container create --name <name> [--parent <container>] [--focus <text>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'name', 'parent', 'focus'],
+    notes: [
+      "The child lives on the parent's worktree, starts with no tabs, and inherits the parent's scope and brief.",
+      "Without --parent, uses this terminal's container (ORCA_CONTAINER_ID). Names must be unique among siblings, and a container can have at most 12 children.",
+      "--focus sets the child's one-line main focus. A person (or you, via `orca container message`) still has to open an agent in it."
+    ],
+    examples: [
+      'orca container create --name "court-overlay" --focus "Render the court overlay for basketball"',
+      'orca container create --parent "computer_vision/basketball" --name "shot-arc"'
+    ]
+  },
+  {
+    path: ['container', 'rm'],
+    aliases: [['container', 'delete']],
+    summary: 'Delete a container nested under this one, closing its tabs and agent sessions',
+    usage: 'orca container rm --container <container> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'container'],
+    notes: [
+      'Only containers nested under yours can be deleted; never your own or an ancestor. Open tabs and agent sessions in the deleted container are closed, and containers nested inside it move up a level.',
+      'There is no confirmation prompt and no undo, so delete only what you created or were told to remove.'
+    ],
+    examples: ['orca container rm --container "computer_vision/basketball/shot-arc"']
+  },
+  {
+    path: ['container', 'launch'],
+    summary: 'Start a new Claude or Codex session inside a container',
+    usage:
+      'orca container launch --agent <claude|codex> [--container <container>] [--prompt <text>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'agent', 'container', 'prompt'],
+    notes: [
+      "Opens a new agent tab in the container without changing the person's selection. Without --container, uses this terminal's container; only your container and ones nested under it are allowed.",
+      "--prompt is the new session's first message. It is also told to read its container context when it has a parent brief or scope to inherit.",
+      'Once the session is up, hand it work with `orca container message --to <container>`.'
+    ],
+    examples: [
+      'orca container launch --container "computer_vision/basketball/shot-arc" --agent codex --prompt "Build the shot-arc overlay"'
+    ]
   }
 ]

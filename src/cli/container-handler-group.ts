@@ -7,7 +7,10 @@ export const CONTAINER_HANDLER_GROUP: HandlerGroup = {
     'container context',
     'container message',
     'container brief',
-    'container scope'
+    'container scope',
+    'container create',
+    'container rm',
+    'container launch'
   ],
   load: async () => (await import('./handlers/container.js')).CONTAINER_HANDLERS
 }

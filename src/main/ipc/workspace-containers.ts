@@ -40,7 +40,11 @@ export function registerWorkspaceContainerHandlers(
     ipcMain.removeHandler(channel)
   }
 
-  startContainerBriefInbox(store, broadcast)
+  startContainerBriefInbox(store, broadcast, (request) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send('workspaceContainers:agentRequest', request)
+    }
+  })
 
   ipcMain.handle('workspaceContainers:list', () => store.list())
   ipcMain.handle(

@@ -19,7 +19,7 @@ export type WorkspaceContainersSlice = {
   applyWorkspaceContainerCatalog: (catalog: WorkspaceContainerCatalog) => void
   createWorkspaceContainer: (input: WorkspaceContainerCreateInput) => Promise<WorkspaceContainer>
   updateWorkspaceContainer: (id: string, patch: WorkspaceContainerPatch) => Promise<void>
-  removeWorkspaceContainer: (id: string) => Promise<void>
+  removeWorkspaceContainer: (id: string, options?: { skipConfirm?: boolean }) => Promise<void>
   setActiveWorkspaceContainer: (worktreeId: string, containerId: string | null) => void
   assignTabToWorkspaceContainer: (tabId: string, containerId: string | null) => Promise<void>
 }
@@ -74,7 +74,7 @@ export const createWorkspaceContainersSlice: StateCreator<
     await window.api.workspaceContainers.update(id, patch)
   },
 
-  removeWorkspaceContainer: async (id) => {
+  removeWorkspaceContainer: async (id, options) => {
     const state = get()
     const container = state.workspaceContainers.find((c) => c.id === id)
     // Deleting a container ends the sessions running in it: its tabs close (killing their
@@ -86,6 +86,7 @@ export const createWorkspaceContainersSlice: StateCreator<
     if (
       container &&
       tabs.length > 0 &&
+      !options?.skipConfirm &&
       typeof window.confirm === 'function' &&
       !window.confirm(
         `Delete "${container.name}"? Its ${tabs.length} open tab${tabs.length > 1 ? 's' : ''}, including any agent sessions, will be closed.`

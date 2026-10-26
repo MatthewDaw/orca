@@ -1,5 +1,6 @@
 import { ipcRenderer } from 'electron'
 import type { WorkspaceContainerBlueprint } from '../../shared/workspace-container-blueprint'
+import type { ContainerAgentRequest } from '../../shared/workspace-container-agent-request'
 import type {
   WorkspaceContainer,
   WorkspaceContainerCatalog,
@@ -32,5 +33,11 @@ export const workspaceContainersApi = {
     ): void => callback(catalog)
     ipcRenderer.on('workspaceContainers:changed', listener)
     return () => ipcRenderer.removeListener('workspaceContainers:changed', listener)
+  },
+  onAgentRequest: (callback: (request: ContainerAgentRequest) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: ContainerAgentRequest): void =>
+      callback(request)
+    ipcRenderer.on('workspaceContainers:agentRequest', listener)
+    return () => ipcRenderer.removeListener('workspaceContainers:agentRequest', listener)
   }
 }

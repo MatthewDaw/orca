@@ -280,6 +280,12 @@ export function renderContainerContextPage(
     ...BRIEF_MAINTENANCE_RULES.map((rule) => `- ${rule}`),
     ''
   )
+  lines.push(
+    '## Delegating',
+    '',
+    'Split work into child containers with `orca container create --name <name> --focus <text>`, start a session in one with `orca container launch --container <path> --agent claude|codex --prompt <task>`, and remove ones you no longer need with `orca container rm --container <path>` (this closes its sessions). You can only act on your own container and the ones nested under it.',
+    ''
+  )
   lines.push('## Connections', '')
   if (container.connections.length === 0) {
     lines.push('_No connections._')
