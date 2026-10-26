@@ -14,6 +14,8 @@ export type WorkspaceContainersSlice = {
   workspaceContainersLoaded: boolean
   activeContainerIdByWorktree: Record<string, string | null>
   containerGraphOpen: boolean
+  collapsedContainerIds: Record<string, true>
+  setContainersCollapsed: (ids: string[], collapsed: boolean) => void
   setContainerGraphOpen: (open: boolean) => void
   loadWorkspaceContainers: () => Promise<void>
   applyWorkspaceContainerCatalog: (catalog: WorkspaceContainerCatalog) => void
@@ -34,6 +36,20 @@ export const createWorkspaceContainersSlice: StateCreator<
   workspaceContainersLoaded: false,
   activeContainerIdByWorktree: {},
   containerGraphOpen: false,
+  collapsedContainerIds: {},
+
+  setContainersCollapsed: (ids, collapsed) =>
+    set((state) => {
+      const next = { ...state.collapsedContainerIds }
+      for (const id of ids) {
+        if (collapsed) {
+          next[id] = true
+        } else {
+          delete next[id]
+        }
+      }
+      return { collapsedContainerIds: next }
+    }),
 
   setContainerGraphOpen: (open) => set({ containerGraphOpen: open }),
 

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Boxes, ChevronDown, ChevronRight, Network, Plus, Trash2 } from 'lucide-react'
+import { Boxes, Network, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store'
 import { ImeInput } from '@/lib/ime-text-field'
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/context-menu'
 import type { WorkspaceContainer } from '../../../../shared/workspace-container-types'
 import type { Worktree } from '../../../../shared/worktree/types'
+import { ChildToggle } from './ContainerChildToggle'
 import { ContainerUnreadBell } from './ContainerUnreadBell'
 import { depthStripeClass } from './workspace-container-depth-stripes'
 import { createWorkspaceContainerOnWorktree } from './WorktreeContainerRows'
@@ -96,38 +97,6 @@ async function moveContainerToWorktree(id: string, worktreeId: string): Promise<
   )
 }
 
-function ChildToggle({
-  count,
-  collapsed,
-  onToggle,
-  className
-}: {
-  count: number
-  collapsed: boolean
-  onToggle: () => void
-  className?: string
-}): React.JSX.Element {
-  const Chevron = collapsed ? ChevronRight : ChevronDown
-  return (
-    <button
-      type="button"
-      aria-expanded={!collapsed}
-      className={cn(
-        'flex w-fit items-center gap-1 rounded border border-border px-1 text-[10px] text-muted-foreground hover:text-foreground',
-        className
-      )}
-      onClick={(event) => {
-        event.stopPropagation()
-        onToggle()
-      }}
-    >
-      <Boxes className="size-3" />
-      {count} child{count > 1 ? 'ren' : ''}
-      <Chevron className="size-3" />
-    </button>
-  )
-}
-
 const stopBubble = (event: React.SyntheticEvent): void => event.stopPropagation()
 
 function ContainerCard({
@@ -141,7 +110,8 @@ function ContainerCard({
 }): React.JSX.Element {
   const { container } = node
   const [renaming, setRenaming] = useState(false)
-  const [childrenCollapsed, setChildrenCollapsed] = useState(false)
+  const childrenCollapsed = useAppStore((s) => s.collapsedContainerIds[container.id] === true)
+  const setContainersCollapsed = useAppStore((s) => s.setContainersCollapsed)
   const [draftName, setDraftName] = useState(container.name)
   const active = useAppStore(
     (s) =>
@@ -274,7 +244,13 @@ function ContainerCard({
                 className="mt-1 ml-3.5"
                 count={node.children.length}
                 collapsed={childrenCollapsed}
-                onToggle={() => setChildrenCollapsed((value) => !value)}
+                onToggle={() =>
+                  // Why: collapsing a parent folds everything nested in it too; expanding opens one level.
+                  setContainersCollapsed(
+                    childrenCollapsed ? [container.id] : flattenNode(node).map((c) => c.id),
+                    !childrenCollapsed
+                  )
+                }
               />
             ) : null}
           </div>
@@ -395,7 +371,16 @@ export function WorktreeContainerBox({
           className="mt-1 ml-5"
           count={tree.length}
           collapsed={collapsed}
-          onToggle={() => setCollapsed((value) => !value)}
+          onToggle={() => {
+            // Why: folding the worktree folds every container under it, so reopening starts tidy.
+            if (!collapsed) {
+              useAppStore.getState().setContainersCollapsed(
+                tree.flatMap(flattenNode).map((c) => c.id),
+                true
+              )
+            }
+            setCollapsed((value) => !value)
+          }}
         />
       ) : null}
       {tree.length > 0 && !collapsed ? (
