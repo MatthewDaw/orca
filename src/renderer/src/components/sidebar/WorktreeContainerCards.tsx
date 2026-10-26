@@ -127,6 +127,17 @@ function ContainerCard({
 
   const select = (): void => {
     setActive(container.worktreeId, container.id)
+    // Why: opening a container is looking at it, so its finished-agent markers are read.
+    useAppStore.getState().readOnScreenAttention(
+      {
+        workspaceIds: [],
+        targets: [...container.tabIds, ...(container.terminalTabIds ?? [])].map((tabId) => ({
+          worktreeId: container.worktreeId,
+          tabId
+        }))
+      },
+      { screenArrived: false }
+    )
     void activateWorktreeFromSidebar(container.worktreeId)
     const firstTabId = container.tabIds[0]
     if (firstTabId) {

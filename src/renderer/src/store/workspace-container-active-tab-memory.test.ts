@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { resolveRememberedTab, tabIdsOfSpace } from './workspace-container-active-tab-memory'
+import { describe, expect, it, vi } from 'vitest'
+import { useAppStore } from '.'
+import {
+  installContainerActiveTabMemory,
+  resolveRememberedTab,
+  tabIdsOfSpace
+} from './workspace-container-active-tab-memory'
 import type { Tab } from '../../../shared/tab-types'
 import type { WorkspaceContainer } from '../../../shared/workspace-container-types'
 
@@ -42,5 +47,33 @@ describe('container active tab memory', () => {
     expect(resolveRememberedTab('t2', space, new Set(['t1']))).toBeNull()
     expect(resolveRememberedTab('t9', space, new Set(['t9']))).toBeNull()
     expect(resolveRememberedTab(undefined, space, new Set(['t1']))).toBeNull()
+  })
+})
+
+describe('installContainerActiveTabMemory', () => {
+  it('restores once per switch even when activating a tab re-enters the listener', () => {
+    const containers = [container('a', ['t1']), container('b', ['t2'])]
+    const activateTab = vi.fn(() => {
+      // Mimics the real action: activating a tab updates the store, which notifies listeners.
+      useAppStore.setState({ sortEpoch: Math.random() })
+    })
+    useAppStore.setState({
+      workspaceContainers: containers,
+      unifiedTabsByWorktree: { wt: [tab('t1'), tab('t2')] },
+      groupsByWorktree: { wt: [{ id: 'g', worktreeId: 'wt', activeTabId: 't1', tabOrder: [] }] },
+      activeGroupIdByWorktree: { wt: 'g' },
+      activeContainerIdByWorktree: { wt: 'a' },
+      activateTab
+    })
+    const stop = installContainerActiveTabMemory()
+    useAppStore.setState({ activeContainerIdByWorktree: { wt: 'b' } })
+    useAppStore.setState({
+      groupsByWorktree: { wt: [{ id: 'g', worktreeId: 'wt', activeTabId: 't2', tabOrder: [] }] }
+    })
+    activateTab.mockClear()
+    useAppStore.setState({ activeContainerIdByWorktree: { wt: 'a' } })
+    useAppStore.setState({ activeContainerIdByWorktree: { wt: 'b' } })
+    expect(activateTab.mock.calls.length).toBeLessThanOrEqual(2)
+    stop()
   })
 })

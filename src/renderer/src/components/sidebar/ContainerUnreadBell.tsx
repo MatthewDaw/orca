@@ -1,22 +1,45 @@
-import React from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useAppStore } from '@/store'
 import { FilledBellIcon } from './WorktreeCardHelpers'
-import { containerHasUnreadCompletion } from './workspace-container-unread'
+import { containerBell } from './workspace-container-unread'
 import type { WorkspaceContainer } from '../../../../shared/workspace-container-types'
 
-// Rings when an agent in the container (or, while its children are hidden, in any nested one)
-// has finished and nobody has looked at it yet.
+// Rings only once an agent in the container (or, while its children are hidden, in any nested
+// one) has stopped working and nobody has looked yet. Working again, or opening it, silences it.
 export function ContainerUnreadBell({
   containers
 }: {
   containers: readonly WorkspaceContainer[]
 }): React.JSX.Element | null {
-  const unread = useAppStore((s) =>
-    containers.some((container) =>
-      containerHasUnreadCompletion(container, Object.keys(s.unreadAgentCompletionPanes))
+  const unreadPanes = useAppStore((s) => s.unreadAgentCompletionPanes)
+  const statuses = useAppStore((s) => s.agentStatusByPaneKey)
+  const viewing = useAppStore((s) =>
+    containers.some(
+      (c) =>
+        s.activeWorktreeId === c.worktreeId &&
+        s.activeContainerIdByWorktree?.[c.worktreeId] === c.id
     )
   )
-  if (!unread) {
+  const [now, setNow] = useState(() => Date.now())
+  const bell = useMemo(() => {
+    const keys = Object.keys(unreadPanes)
+    const results = containers.map((c) => containerBell(c, keys, statuses, now))
+    const settleTimes = results.flatMap((r) => (r.settleAt === null ? [] : [r.settleAt]))
+    return {
+      ringing: results.some((r) => r.ringing),
+      settleAt: settleTimes.length > 0 ? Math.min(...settleTimes) : null
+    }
+  }, [containers, unreadPanes, statuses, now])
+
+  useEffect(() => {
+    if (bell.settleAt === null) {
+      return undefined
+    }
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, bell.settleAt - Date.now()) + 50)
+    return () => clearTimeout(timer)
+  }, [bell.settleAt])
+
+  if (!bell.ringing || viewing) {
     return null
   }
   return (

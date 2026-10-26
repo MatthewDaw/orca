@@ -35,6 +35,10 @@ export function installContainerActiveTabMemory(): () => void {
   let previousActive = useAppStore.getState().activeContainerIdByWorktree
 
   return useAppStore.subscribe((state) => {
+    // Why first: activating a tab below re-enters this listener, which must already see the
+    // switch as handled or it restores again, forever.
+    const handledActive = previousActive
+    previousActive = state.activeContainerIdByWorktree
     const containers = state.workspaceContainers
     const activeByWorktree = state.activeContainerIdByWorktree
     for (const [worktreeId, containerId] of Object.entries(activeByWorktree)) {
@@ -45,7 +49,7 @@ export function installContainerActiveTabMemory(): () => void {
         containerId
       )
       const key = containerSpaceKey(worktreeId, containerId)
-      if ((previousActive[worktreeId] ?? null) !== (containerId ?? null)) {
+      if ((handledActive[worktreeId] ?? null) !== (containerId ?? null)) {
         const target = resolveRememberedTab(
           lastTabBySpace.get(key),
           spaceTabIds,
@@ -64,6 +68,5 @@ export function installContainerActiveTabMemory(): () => void {
         lastTabBySpace.set(key, activeTabId)
       }
     }
-    previousActive = activeByWorktree
   })
 }

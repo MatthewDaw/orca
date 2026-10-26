@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { containerHasUnreadCompletion, containerOfPane } from './workspace-container-unread'
+import {
+  BELL_SETTLE_MS,
+  containerBell,
+  containerHasUnreadCompletion,
+  containerOfPane
+} from './workspace-container-unread'
 import type { WorkspaceContainer } from '../../../../shared/workspace-container-types'
 
 const container: WorkspaceContainer = {
@@ -32,5 +37,33 @@ describe('containerOfPane', () => {
   it('finds the container owning the pane tab', () => {
     expect(containerOfPane([container], 't1:leaf')).toBe(container)
     expect(containerOfPane([container], 'zz:leaf')).toBeUndefined()
+  })
+})
+
+describe('containerBell', () => {
+  const now = 100_000
+  const quiet = (state: string, startedAgo: number) => ({
+    state,
+    stateStartedAt: now - startedAgo
+  })
+
+  it('stays silent while the agent is working, even with a finish marker', () => {
+    expect(
+      containerBell(container, ['t1:a'], { 't1:a': quiet('working', 60_000) }, now).ringing
+    ).toBe(false)
+  })
+
+  it('rings once the agent has been stopped for a few seconds', () => {
+    const stopped = { 't1:a': quiet('done', BELL_SETTLE_MS + 1) }
+    expect(containerBell(container, ['t1:a'], stopped, now).ringing).toBe(true)
+  })
+
+  it('waits out a fresh stop and says when it will ring', () => {
+    const bell = containerBell(container, ['t1:a'], { 't1:a': quiet('done', 500) }, now)
+    expect(bell).toEqual({ ringing: false, settleAt: now - 500 + BELL_SETTLE_MS })
+  })
+
+  it('is silent with no finish marker', () => {
+    expect(containerBell(container, [], { 't1:a': quiet('done', 60_000) }, now).ringing).toBe(false)
   })
 })
