@@ -23,6 +23,7 @@ import type {
 } from './agent-completion-coordinator-types'
 import type { NotificationDispatchResult } from '../../../../shared/notification-settings-types'
 import { getNotificationWorkspaceLabels } from './terminal-notification-state'
+import { withContainerInLabel } from './terminal-notification-container-label'
 import { createTerminalAttentionSurface } from './terminal-attention-surface'
 import {
   applyAgentAttention,
@@ -183,7 +184,11 @@ export function dispatchTerminalNotification(
         worktreeId: request.workspaceId,
         ...(executionHost ? { executionHost } : {}),
         paneKey: request.subjectKey ?? undefined,
-        ...getNotificationWorkspaceLabels(state, request.workspaceId, event.terminalTitle),
+        ...withContainerInLabel(
+          getNotificationWorkspaceLabels(state, request.workspaceId, event.terminalTitle),
+          state,
+          request.subjectKey
+        ),
         notificationSourceId: notificationSourceForOwner(owner, state),
         terminalTitle: event.terminalTitle,
         isActiveWorktree: request.workspaceIsActive,

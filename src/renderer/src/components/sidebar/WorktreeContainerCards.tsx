@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/context-menu'
 import type { WorkspaceContainer } from '../../../../shared/workspace-container-types'
 import type { Worktree } from '../../../../shared/worktree/types'
+import { ContainerUnreadBell } from './ContainerUnreadBell'
 import { depthStripeClass } from './workspace-container-depth-stripes'
 import { createWorkspaceContainerOnWorktree } from './WorktreeContainerRows'
 import {
@@ -260,6 +261,9 @@ function ContainerCard({
                   {container.name}
                 </span>
               )}
+              <ContainerUnreadBell
+                containers={childrenCollapsed ? flattenNode(node) : [container]}
+              />
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                 {container.tabIds.length}
               </span>
@@ -413,4 +417,8 @@ export function WorktreeContainerBox({
       ) : null}
     </div>
   )
+}
+
+function flattenNode(node: WorkspaceContainerNode): WorkspaceContainer[] {
+  return [node.container, ...node.children.flatMap(flattenNode)]
 }
