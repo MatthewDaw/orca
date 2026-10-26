@@ -224,7 +224,7 @@ function ContainerCard({
               "data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-1 data-[drop=before]:before:h-0.5 data-[drop=before]:before:rounded data-[drop=before]:before:bg-ring data-[drop=before]:before:content-['']",
               "data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-1 data-[drop=after]:after:h-0.5 data-[drop=after]:after:rounded data-[drop=after]:after:bg-ring data-[drop=after]:after:content-['']",
               'border-border bg-accent/40 border-l-[3px]',
-              depthStripeClass(depth),
+              depthStripeClass(depth, active),
               // Why: the selected container must stand out at a glance, so it gets a full ring and a tinted fill.
               active
                 ? 'bg-primary/15 text-accent-foreground ring-2 ring-primary'

@@ -8,6 +8,17 @@ const DEPTH_STRIPES = [
   'border-l-git-graph-lane-3/70'
 ] as const
 
-export function depthStripeClass(depth: number): string {
-  return DEPTH_STRIPES[depth % DEPTH_STRIPES.length]
+const SELECTED_DEPTH_STRIPES = [
+  'border-l-git-graph-lane-4 border-l-[6px] pl-[9px]',
+  'border-l-git-graph-lane-5 border-l-[6px] pl-[9px]',
+  'border-l-git-graph-lane-1 border-l-[6px] pl-[9px]',
+  'border-l-git-graph-lane-2 border-l-[6px] pl-[9px]',
+  'border-l-git-graph-lane-3 border-l-[6px] pl-[9px]'
+] as const
+
+// Why: the selected card's tint and ring wash out a 70% stripe, so selection draws it solid and
+// wider to keep the nesting hue readable.
+export function depthStripeClass(depth: number, selected = false): string {
+  const stripes = selected ? SELECTED_DEPTH_STRIPES : DEPTH_STRIPES
+  return stripes[depth % stripes.length]
 }
