@@ -4,16 +4,12 @@ import { FilledBellIcon } from './WorktreeCardHelpers'
 import { containerBell } from './workspace-container-unread'
 import type { WorkspaceContainer } from '../../../../shared/workspace-container-types'
 
-// Where the container card reports its agents, in three states: a solid dot while one is working,
-// a bell once one has stopped and nobody has looked yet, and nothing after it has been seen.
-// While children are hidden the bell also covers nested containers; the working dot never does,
-// it only speaks for the container itself.
+// Rings once an agent in the container (or, while its children are hidden, in any nested one)
+// has stopped working and nobody has looked yet. Working again, or opening it, silences it.
 export function ContainerUnreadBell({
-  containers,
-  own
+  containers
 }: {
   containers: readonly WorkspaceContainer[]
-  own: WorkspaceContainer
 }): React.JSX.Element | null {
   const unreadPanes = useAppStore((s) => s.unreadAgentCompletionPanes)
   const statuses = useAppStore((s) => s.agentStatusByPaneKey)
@@ -31,10 +27,9 @@ export function ContainerUnreadBell({
     const settleTimes = results.flatMap((r) => (r.settleAt === null ? [] : [r.settleAt]))
     return {
       finished: results.some((r) => r.indicator === 'finished'),
-      working: containerBell(own, keys, statuses, now).indicator === 'working',
       settleAt: settleTimes.length > 0 ? Math.min(...settleTimes) : null
     }
-  }, [containers, own, unreadPanes, statuses, now])
+  }, [containers, unreadPanes, statuses, now])
 
   useEffect(() => {
     if (status.settleAt === null) {
@@ -47,22 +42,12 @@ export function ContainerUnreadBell({
     return () => clearTimeout(timer)
   }, [status.settleAt])
 
-  if (status.finished && !viewing) {
-    return (
-      <span title="An agent here finished its work" className="shrink-0">
-        <FilledBellIcon className="size-[13px] animate-pulse text-annotation-highlight drop-shadow-sm" />
-      </span>
-    )
+  if (!status.finished || viewing) {
+    return null
   }
-  if (status.working) {
-    return (
-      <span
-        title="An agent here is working"
-        className="flex size-[13px] shrink-0 items-center justify-center"
-      >
-        <span className="size-2 rounded-full bg-foreground/70" />
-      </span>
-    )
-  }
-  return null
+  return (
+    <span title="An agent here finished its work" className="shrink-0">
+      <FilledBellIcon className="size-[13px] animate-pulse text-annotation-highlight drop-shadow-sm" />
+    </span>
+  )
 }

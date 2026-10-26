@@ -239,7 +239,6 @@ function ContainerCard({
                 </span>
               )}
               <ContainerUnreadBell
-                own={container}
                 containers={childrenCollapsed ? flattenNode(node) : [container]}
               />
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
