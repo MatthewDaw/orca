@@ -2,6 +2,7 @@ import type { PtyRendererDelivery } from '../session'
 import { getPtyIpc } from '../../pty-host-bindings'
 import type { OrcaRuntimeService } from '../../../runtime/orca-runtime'
 import { createPtyWriteInput } from './write-input'
+import { recordHumanTerminalInput } from '../../../runtime/terminal-human-draft'
 
 export function installPtyWriteIpcHandlers(deps: {
   mainWindow?: PtyRendererDelivery
@@ -23,6 +24,9 @@ export function installPtyWriteIpcHandlers(deps: {
     if (!isPtyWriteEventFromMainWindow(event) || !isPtyWritePayload(args)) {
       return
     }
+    if (args.inputKind === 'driving') {
+      recordHumanTerminalInput(args.id, args.data)
+    }
     const claimTail = hostViewportClaimTails.get(args.id)
     if (claimTail) {
       void claimTail.then((claimed) => (claimed ? writePtyInput(args) : false))
@@ -33,6 +37,9 @@ export function installPtyWriteIpcHandlers(deps: {
   ipcMain.handle('pty:writeAccepted', (event, args: unknown): boolean | Promise<boolean> => {
     if (!isPtyWriteEventFromMainWindow(event) || !isPtyWritePayload(args)) {
       return false
+    }
+    if (args.inputKind === 'driving') {
+      recordHumanTerminalInput(args.id, args.data)
     }
     const claimTail = hostViewportClaimTails.get(args.id)
     return claimTail

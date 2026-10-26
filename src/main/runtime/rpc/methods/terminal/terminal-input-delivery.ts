@@ -1,4 +1,5 @@
 import { InvalidArgumentError } from '../../core'
+import { isTerminalQueryReply } from '../../../../../shared/terminal-query-reply'
 import type { RuntimeTerminalSend } from '../../../../../shared/runtime-terminal-send-contract'
 import type { DriverState, OrcaRuntimeService } from '../../../orca-runtime'
 import {
@@ -7,6 +8,7 @@ import {
   isTerminalInputTooLargeWithYield
 } from '../../../../../shared/terminal-input'
 import type { TerminalViewportClient } from './terminal-stream-types'
+import { isUserComposing, waitUntilUserStopsComposing } from '../../../terminal-human-draft'
 
 export function isTerminalInputLockedForClient(
   runtime: OrcaRuntimeService,
@@ -156,4 +158,62 @@ export function assertTerminalSendExactPtyBinding(
     // Fall through to the stable guarded-send result below.
   }
   throw new Error('terminal_guard_not_writable')
+}
+
+// A message that would land inside a person's unsent draft waits for them to submit or clear it,
+// then types itself in. Returns the immediate reply when it deferred, or null to send right away.
+export function deferSendWhileUserComposes(
+  runtime: OrcaRuntimeService,
+  params: {
+    terminal: string
+    text?: string
+    enter?: unknown
+    interrupt?: unknown
+    deferWhileUserTyping?: true
+  },
+  ptyId: string | null | undefined
+): { send: RuntimeTerminalSend } | null {
+  const { terminal, text } = params
+  const enter = params.enter === true
+  if (
+    !params.deferWhileUserTyping ||
+    params.interrupt === true ||
+    !ptyId ||
+    !isUserComposing(ptyId)
+  ) {
+    return null
+  }
+  void waitUntilUserStopsComposing(ptyId)
+    .then(() =>
+      runtime.sendTerminal(terminal, { text, enter, interrupt: false }, { inputKind: 'driving' })
+    )
+    .catch(() => undefined)
+  return { send: { handle: terminal, accepted: true, bytesWritten: 0, queued: true } }
+}
+
+export function isInvalidTerminalQueryReply(
+  params: {
+    inputKind?: string
+    text?: string
+    enter?: unknown
+    interrupt?: unknown
+    agentPrompt?: unknown
+    requireAgentStatus?: unknown
+    client?: { id: string; type?: string }
+  },
+  clientId: string | undefined,
+  queryReplyClientId: string | undefined
+): boolean {
+  return (
+    params.inputKind === 'query-reply' &&
+    (!params.text ||
+      !isTerminalQueryReply(params.text) ||
+      params.enter === true ||
+      params.interrupt === true ||
+      params.agentPrompt === true ||
+      params.requireAgentStatus !== undefined ||
+      params.client?.type !== 'mobile' ||
+      !queryReplyClientId ||
+      (clientId !== undefined && params.client.id !== clientId))
+  )
 }

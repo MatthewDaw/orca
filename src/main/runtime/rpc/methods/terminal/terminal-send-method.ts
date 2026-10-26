@@ -1,6 +1,5 @@
 import { assertLegacyAiVaultResumeCommandAllowed } from '../../../../ai-vault/structured-session-ownership'
 import { InvalidArgumentError, defineMethod } from '../../core'
-import { isTerminalQueryReply } from '../../../../../shared/terminal-query-reply'
 import { isUntypedTerminalInput } from '../../../../../shared/terminal-untyped-input'
 import { assertTerminalAgentSendable } from '../../terminal-agent-send-guard'
 import { TerminalSend } from '../../../../../shared/rpc-contract/terminal-unary-params'
@@ -8,6 +7,8 @@ import {
   assertTerminalSendExactPtyBinding,
   assertTerminalSendTextWithinLimit,
   commitMobileInputFloorClaim,
+  deferSendWhileUserComposes,
+  isInvalidTerminalQueryReply,
   getTerminalSendGuardRefusedReason,
   isTerminalInputLockedForClient,
   isTerminalSendGuardNotWritable,
@@ -50,18 +51,7 @@ export const TERMINAL_SEND_METHODS = [
         )
       }
       const queryReplyClientId = clientId ?? params.client?.id
-      if (
-        params.inputKind === 'query-reply' &&
-        (!params.text ||
-          !isTerminalQueryReply(params.text) ||
-          params.enter === true ||
-          params.interrupt === true ||
-          params.agentPrompt === true ||
-          params.requireAgentStatus !== undefined ||
-          params.client?.type !== 'mobile' ||
-          !queryReplyClientId ||
-          (clientId !== undefined && params.client.id !== clientId))
-      ) {
+      if (isInvalidTerminalQueryReply(params, clientId, queryReplyClientId)) {
         throw new InvalidArgumentError('Invalid terminal query reply')
       }
       const replayObservation = await observeReplayedTerminalPrompt(
@@ -77,6 +67,10 @@ export const TERMINAL_SEND_METHODS = [
       // Why: a stale handle must fail with terminal_handle_stale, not evaluate driver/lock state against the wrong PTY (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       const driver = leaf?.ptyId ? runtime.getDriver(leaf.ptyId) : null
+      const deferred = deferSendWhileUserComposes(runtime, params, leaf?.ptyId)
+      if (deferred) {
+        return deferred
+      }
       if (
         params.inputKind === 'query-reply' &&
         leaf?.ptyId &&

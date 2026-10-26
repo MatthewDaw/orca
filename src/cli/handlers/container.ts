@@ -117,29 +117,37 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
       `"${targetPath}" has no open terminal to receive the message. Open an agent in that container first.`
     )
   }
-  const sent = await ctx.client.call<{ send: { accepted: boolean } }>('terminal.send', {
-    terminal: terminal.handle,
-    text: formatContainerMessage(
-      catalog,
-      sender,
-      getRequiredStringFlag(ctx.flags, 'text'),
-      exchange
-    ),
-    enter: true,
-    interrupt: false,
-    client: { id: 'orca-cli', type: 'desktop' }
-  })
+  const sent = await ctx.client.call<{ send: { accepted: boolean; queued?: true } }>(
+    'terminal.send',
+    {
+      terminal: terminal.handle,
+      text: formatContainerMessage(
+        catalog,
+        sender,
+        getRequiredStringFlag(ctx.flags, 'text'),
+        exchange
+      ),
+      enter: true,
+      interrupt: false,
+      // Why: never type into a person's half-written message; it waits until they send or clear it.
+      deferWhileUserTyping: true,
+      client: { id: 'orca-cli', type: 'desktop' }
+    }
+  )
   if (ctx.json) {
     console.log(
       JSON.stringify({
         to: targetPath,
         terminal: terminal.handle,
-        accepted: sent.result.send.accepted
+        accepted: sent.result.send.accepted,
+        queued: sent.result.send.queued === true
       })
     )
   } else {
     console.log(
-      `Sent to ${targetPath} (${terminal.agentIdentity ?? 'terminal'} ${terminal.handle}).`
+      sent.result.send.queued
+        ? `Queued for ${targetPath}: a person is mid-message there, so it will be typed in once they send or clear it.`
+        : `Sent to ${targetPath} (${terminal.agentIdentity ?? 'terminal'} ${terminal.handle}).`
     )
   }
   if (!sent.result.send.accepted) {
