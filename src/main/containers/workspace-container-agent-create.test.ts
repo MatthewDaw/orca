@@ -39,4 +39,17 @@ describe('applyAgentChildCreate', () => {
     expect((await store.applyAgentChildCreate(parent.id, '  ', '')).ok).toBe(false)
     expect((await store.applyAgentChildCreate('missing', 'x', '')).ok).toBe(false)
   })
+
+  it('creates a top-level container from a worktree alone, rejecting duplicates among top-level ones', async () => {
+    const store = await newStore()
+    const nested = await store.create({ worktreeId: 'wt', name: 'audit' })
+    await store.applyAgentChildCreate(nested.id, 'cloud', '')
+    expect(await store.applyAgentChildCreate(null, 'cloud', 'Audit it', 'wt')).toEqual({ ok: true })
+    const top = (await store.list()).containers.find(
+      (c) => c.name === 'cloud' && c.parentContainerId === null
+    )
+    expect(top).toMatchObject({ worktreeId: 'wt', focus: 'Audit it' })
+    expect((await store.applyAgentChildCreate(null, 'Cloud', '', 'wt')).ok).toBe(false)
+    expect((await store.applyAgentChildCreate(null, 'x', '')).ok).toBe(false)
+  })
 })

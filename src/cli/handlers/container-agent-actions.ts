@@ -19,23 +19,28 @@ export async function createChildContainer(ctx: HandlerContext): Promise<void> {
   const catalog = await readCatalog()
   const parentRef = getOptionalStringFlag(ctx.flags, 'parent') ?? process.env.ORCA_CONTAINER_ID
   const resolved = parentRef ? resolveContainerRef(catalog, parentRef) : null
-  if (!resolved?.container) {
+  // Why: a terminal in a worktree's own space is in no container but still sits on a worktree,
+  // so with no parent the container is created at the top level of that worktree.
+  const worktreeId = resolved?.container ? undefined : process.env.ORCA_WORKTREE_ID
+  if (!resolved?.container && !(parentRef === undefined && worktreeId)) {
     throw new RuntimeClientError(
       'selector_not_found',
-      'This terminal is not in a container. Pass --parent <container>.'
+      'This terminal is not in a container or worktree. Pass --parent <container>.'
     )
   }
-  const parent = resolved.container
+  const parent = resolved?.container ?? null
   const name = getRequiredStringFlag(ctx.flags, 'name').trim()
   const taken = catalog.containers.some(
-    (c) => c.parentContainerId === parent.id && c.name.toLowerCase() === name.toLowerCase()
+    (c) =>
+      (c.parentContainerId ?? null) === (parent?.id ?? null) &&
+      (parent || c.worktreeId === worktreeId) &&
+      c.name.toLowerCase() === name.toLowerCase()
   )
+  const parentPath = parent ? describeContainerPath(catalog, parent) : 'this worktree'
   if (!name || taken) {
     throw new RuntimeClientError(
       'invalid_argument',
-      taken
-        ? `"${describeContainerPath(catalog, parent)}" already has a child named "${name}".`
-        : 'A name is required.'
+      taken ? `"${parentPath}" already has a container named "${name}".` : 'A name is required.'
     )
   }
   const inbox = join(containerDirectory(), 'inbox')
@@ -45,13 +50,15 @@ export async function createChildContainer(ctx: HandlerContext): Promise<void> {
     JSON.stringify({
       createChild: true,
       requesterId: process.env.ORCA_CONTAINER_ID,
-      containerId: parent.id,
+      ...(parent ? { containerId: parent.id } : { worktreeId }),
       name,
       focus: getOptionalStringFlag(ctx.flags, 'focus') ?? ''
     })
   )
   console.log(
-    `Requested a child container "${name}" under ${describeContainerPath(catalog, parent)}; Orca will create it within a moment. Reach it with \`orca container message --to "${describeContainerPath(catalog, parent)}/${name}"\` once someone opens an agent there.`
+    parent
+      ? `Requested a child container "${name}" under ${parentPath}; Orca will create it within a moment. Reach it with \`orca container message --to "${parentPath}/${name}"\` once someone opens an agent there.`
+      : `Requested a container "${name}" on this worktree; Orca will create it within a moment. Reach it with \`orca container message --to "${name}"\` once someone opens an agent there.`
   )
 }
 

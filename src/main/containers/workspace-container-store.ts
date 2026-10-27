@@ -100,34 +100,47 @@ export class WorkspaceContainerStore {
     return { ok: true }
   }
 
-  // Agent-requested child container; it lives on the parent's worktree and cannot duplicate a sibling's name.
+  // Agent-requested container. Under a parent it lives on the parent's worktree; with only a
+  // worktree (an agent in a worktree's own space) it becomes a top-level container there.
+  // Names cannot duplicate a sibling's.
   async applyAgentChildCreate(
-    parentId: string,
+    parentId: string | null,
     name: string,
-    focus: string
+    focus: string,
+    worktreeId?: string
   ): Promise<{ ok: true } | { ok: false; reason: string }> {
     const catalog = await this.load()
-    const parent = catalog.containers.find((c) => c.id === parentId)
+    const parent = parentId ? catalog.containers.find((c) => c.id === parentId) : undefined
     const trimmed = name.trim()
-    if (!parent) {
+    const targetWorktreeId = parent ? parent.worktreeId : worktreeId
+    if (!targetWorktreeId || (parentId && !parent)) {
       return { ok: false, reason: 'Unknown parent container.' }
     }
     if (!trimmed || trimmed.length > MAX_CHILD_NAME_CHARS) {
       return { ok: false, reason: `Name must be 1-${MAX_CHILD_NAME_CHARS} characters.` }
     }
-    const siblings = catalog.containers.filter((c) => c.parentContainerId === parentId)
+    const siblings = catalog.containers.filter(
+      (c) =>
+        c.worktreeId === targetWorktreeId &&
+        (c.parentContainerId ?? null) === (parent ? parent.id : null)
+    )
+    const where = parent ? `"${parent.name}"` : 'This worktree'
     if (siblings.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
-      return { ok: false, reason: `"${parent.name}" already has a child named "${trimmed}".` }
+      return { ok: false, reason: `${where} already has a container named "${trimmed}".` }
     }
     if (siblings.length >= MAX_AGENT_CHILDREN) {
-      return { ok: false, reason: `"${parent.name}" already has ${MAX_AGENT_CHILDREN} children.` }
+      return { ok: false, reason: `${where} already has ${MAX_AGENT_CHILDREN} containers.` }
     }
     const id = randomUUID()
     const now = Date.now()
     await this.mutate((current) => {
       const created = createContainer(
         current,
-        { worktreeId: parent.worktreeId, name: trimmed, parentContainerId: parentId },
+        {
+          worktreeId: targetWorktreeId,
+          name: trimmed,
+          ...(parent ? { parentContainerId: parent.id } : {})
+        },
         id,
         now
       )

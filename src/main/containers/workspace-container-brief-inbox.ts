@@ -13,7 +13,14 @@ let watcher: FSWatcher | null = null
 
 type BriefProposal =
   | { kind: 'text'; containerId: string; text: string; field: 'brief' | 'codeScope' }
-  | { kind: 'child'; containerId: string; name: string; focus: string; requesterId?: string }
+  | {
+      kind: 'child'
+      containerId: string | null
+      worktreeId?: string
+      name: string
+      focus: string
+      requesterId?: string
+    }
   | { kind: 'request'; request: ContainerAgentRequest; requesterId?: string }
 
 const stringField = (value: object, key: string): string | undefined => {
@@ -50,14 +57,14 @@ function parseProposal(raw: string): BriefProposal | null {
       value !== null &&
       'createChild' in value &&
       value.createChild === true &&
-      'containerId' in value &&
-      typeof value.containerId === 'string' &&
+      (stringField(value, 'containerId') || stringField(value, 'worktreeId')) &&
       'name' in value &&
       typeof value.name === 'string'
     ) {
       return {
         kind: 'child',
-        containerId: value.containerId,
+        containerId: stringField(value, 'containerId') ?? null,
+        worktreeId: stringField(value, 'worktreeId'),
         name: value.name,
         focus: 'focus' in value && typeof value.focus === 'string' ? value.focus : '',
         requesterId: stringField(value, 'requesterId')
@@ -110,13 +117,20 @@ async function drainInbox(
         onRequest(proposal.request)
       }
     } else if (proposal) {
+      // Why: a worktree-level create comes from a terminal in that worktree's own space, which owns every container on it.
       const allowed =
         proposal.kind !== 'child' ||
+        proposal.containerId === null ||
         (await mayActOn(store, proposal.requesterId, proposal.containerId, 'create'))
       const result = !allowed
         ? { ok: false }
         : proposal.kind === 'child'
-          ? await store.applyAgentChildCreate(proposal.containerId, proposal.name, proposal.focus)
+          ? await store.applyAgentChildCreate(
+              proposal.containerId,
+              proposal.name,
+              proposal.focus,
+              proposal.worktreeId
+            )
           : proposal.field === 'codeScope'
             ? await store.applyAgentCodeScope(proposal.containerId, proposal.text)
             : await store.applyAgentBrief(proposal.containerId, proposal.text)
