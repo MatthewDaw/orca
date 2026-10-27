@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
-import { planAgentAutoResume } from './workspace-agent-auto-resume'
+import { planAgentAutoResume, planRemainingTabs } from './workspace-agent-auto-resume'
 
 const record = (
   tabId: string,
@@ -48,5 +48,20 @@ describe('planAgentAutoResume', () => {
         record('b', { origin: undefined })
       ])
     ).toEqual([])
+  })
+})
+
+describe('planRemainingTabs', () => {
+  it('mounts every tab not already woken, except ones put to sleep on purpose', () => {
+    expect(
+      planRemainingTabs(
+        { wt: [{ id: 'woken' }, { id: 'shell' }, { id: 'slept' }], other: [{ id: 'agent' }] },
+        [record('slept', { origin: 'worktree-sleep' })],
+        new Set(['woken'])
+      )
+    ).toEqual([
+      { worktreeId: 'wt', tabIds: ['shell'] },
+      { worktreeId: 'other', tabIds: ['agent'] }
+    ])
   })
 })

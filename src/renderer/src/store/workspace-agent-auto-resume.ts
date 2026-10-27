@@ -52,10 +52,30 @@ async function continueWhenReady(tabId: string): Promise<void> {
   }
 }
 
-async function resumeAll(): Promise<void> {
-  const plan = planAgentAutoResume(
-    Object.values(useAppStore.getState().sleepingAgentSessionsByPaneKey)
+// Every other terminal tab (an agent whose resume record was lost, or a plain shell) is mounted
+// too, so a restart restores all sessions without anyone clicking through containers. Tabs of an
+// agent the person put to sleep on purpose stay asleep.
+export function planRemainingTabs(
+  tabsByWorktree: Readonly<Record<string, readonly { id: string }[] | undefined>>,
+  records: readonly SleepingAgentSessionRecord[],
+  handledTabIds: ReadonlySet<string>
+): { worktreeId: string; tabIds: string[] }[] {
+  const asleepOnPurpose = new Set(
+    records
+      .filter((r) => r.origin === 'worktree-sleep' || r.restoreOnTabOpenOnly === true)
+      .map(getSleepingRecordTabId)
   )
+  return Object.entries(tabsByWorktree).flatMap(([worktreeId, tabs]) => {
+    const tabIds = (tabs ?? [])
+      .map((tab) => tab.id)
+      .filter((id) => !handledTabIds.has(id) && !asleepOnPurpose.has(id))
+    return tabIds.length > 0 ? [{ worktreeId, tabIds }] : []
+  })
+}
+
+async function resumeAll(): Promise<void> {
+  const records = Object.values(useAppStore.getState().sleepingAgentSessionsByPaneKey)
+  const plan = planAgentAutoResume(records)
   for (const { worktreeId, tabId, continueWork } of plan) {
     const stillThere = useAppStore
       .getState()
@@ -67,6 +87,15 @@ async function resumeAll(): Promise<void> {
     if (continueWork) {
       void continueWhenReady(tabId)
     }
+    await new Promise((resolve) => setTimeout(resolve, WAKE_SPACING_MS))
+  }
+  const remaining = planRemainingTabs(
+    useAppStore.getState().tabsByWorktree,
+    records,
+    new Set(plan.map((item) => item.tabId))
+  )
+  for (const { worktreeId, tabIds } of remaining) {
+    requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds })
     await new Promise((resolve) => setTimeout(resolve, WAKE_SPACING_MS))
   }
 }
