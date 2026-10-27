@@ -5,6 +5,7 @@ import {
   inheritedCodeScopes,
   isContainerWithin,
   pickTargetTerminal,
+  rankTargetTerminals,
   resolveContainerRef
 } from './workspace-container-routing'
 import type { WorkspaceContainer, WorkspaceContainerCatalog } from './workspace-container-types'
@@ -165,6 +166,21 @@ describe('pickTargetTerminal', () => {
   it('routes by agent hint and falls back to the first when vague', () => {
     expect(pickTargetTerminal(terminals, target, 'codex')?.handle).toBe('h3')
     expect(pickTargetTerminal(terminals, target, 'whatever')?.handle).toBe('h2')
+  })
+
+  it('uses words from the conversation title to pick among several agents', () => {
+    const several = [
+      { handle: 'h1', tabId: 'a', title: 'Fix court overlay bug', agentIdentity: 'codex' },
+      { handle: 'h2', tabId: 'a', title: 'Build shot arc feature', agentIdentity: 'codex' },
+      { handle: 'h3', tabId: 'b', title: 'Review scoring pipeline', agentIdentity: 'claude' }
+    ]
+    expect(pickTargetTerminal(several, target, 'the shot arc one')?.handle).toBe('h2')
+    expect(pickTargetTerminal(several, target, 'scoring review')?.handle).toBe('h3')
+    expect(rankTargetTerminals(several, target, 'shot arc').map((t) => t.handle)).toEqual([
+      'h2',
+      'h1',
+      'h3'
+    ])
   })
 
   it('returns null when the container has no terminal', () => {

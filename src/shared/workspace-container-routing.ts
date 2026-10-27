@@ -212,27 +212,44 @@ type TerminalLike = {
   agentIdentity?: string
 }
 
-// Defaults to the container's first agent terminal; a hint (an agent name such as "codex", or a
-// title fragment) picks among several, and a vague or unmatched hint falls back to the first.
+const wordsOf = (value: string): string[] =>
+  normalize(value)
+    .split(' ')
+    .filter((word) => word.length > 1)
+
+// The container's agent terminals, best match first. A hint (an agent name such as "codex", or
+// words from a conversation's tab title) ranks terminals by how many of its words their title,
+// pane title or agent name contain; ties and a hint that matches nothing keep tab order, so
+// the first agent is the default.
+export function rankTargetTerminals<T extends TerminalLike>(
+  terminals: readonly T[],
+  container: WorkspaceContainer,
+  hint?: string
+): T[] {
+  const owned = new Set(container.terminalTabIds ?? [])
+  const inContainer = terminals.filter((t) => owned.has(t.tabId))
+  const agents = inContainer.filter((t) => t.agentIdentity)
+  const pool = agents.length > 0 ? agents : inContainer
+  const wanted = hint ? wordsOf(hint) : []
+  if (wanted.length === 0) {
+    return [...pool]
+  }
+  const score = (t: T): number => {
+    const haystack = normalize([t.agentIdentity, t.title, t.paneTitle].filter(Boolean).join(' '))
+    return wanted.filter((word) => haystack.includes(word)).length
+  }
+  return pool
+    .map((terminal, index) => ({ terminal, index, score: score(terminal) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.terminal)
+}
+
 export function pickTargetTerminal<T extends TerminalLike>(
   terminals: readonly T[],
   container: WorkspaceContainer,
   hint?: string
 ): T | null {
-  const owned = new Set(container.terminalTabIds ?? [])
-  const inContainer = terminals.filter((t) => owned.has(t.tabId))
-  const agents = inContainer.filter((t) => t.agentIdentity)
-  const pool = agents.length > 0 ? agents : inContainer
-  const wanted = hint ? normalize(hint) : ''
-  if (wanted) {
-    const hinted = pool.find((t) =>
-      [t.agentIdentity, t.title, t.paneTitle].some((v) => v && normalize(v).includes(wanted))
-    )
-    if (hinted) {
-      return hinted
-    }
-  }
-  return pool[0] ?? null
+  return rankTargetTerminals(terminals, container, hint)[0] ?? null
 }
 
 export const MAX_CONTAINER_EXCHANGES = 8

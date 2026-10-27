@@ -12,7 +12,7 @@ import {
   describeContainerPath,
   formatContainerMessage,
   MAX_CONTAINER_EXCHANGES,
-  pickTargetTerminal,
+  rankTargetTerminals,
   resolveContainerRef
 } from '../../shared/workspace-container-routing'
 import { containerDirectory, readCatalog } from './container-catalog-file'
@@ -101,11 +101,13 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
     worktree: `id:${target.container.worktreeId}`,
     includeVisualLayouts: false
   })
-  const terminal = pickTargetTerminal(
+  const ranked = rankTargetTerminals(
     listed.result.terminals,
     target.container,
     getOptionalStringFlag(ctx.flags, 'agent')
   )
+  const terminal = ranked[0] ?? null
+  const others = ranked.slice(1)
   const targetPath = describeContainerPath(catalog, target.container)
   if (!terminal) {
     throw new RuntimeClientError(
@@ -139,7 +141,8 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
         to: targetPath,
         terminal: terminal.handle,
         accepted: sent.result.send.accepted,
-        queued: sent.result.send.queued === true
+        queued: sent.result.send.queued === true,
+        otherConversations: others.map((t) => ({ handle: t.handle, title: t.title }))
       })
     )
   } else {
@@ -147,6 +150,14 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
       sent.result.send.queued
         ? `Queued for ${targetPath}: a person is mid-message there, so it will be typed in once they send or clear it.`
         : `Sent to ${targetPath} (${terminal.agentIdentity ?? 'terminal'} ${terminal.handle}).`
+    )
+  }
+  if (others.length > 0 && !ctx.json) {
+    // Why: with several conversations the sender should know which one it reached and how to pick another.
+    console.log(
+      `${ranked.length} conversations are open there; this went to "${terminal.title ?? terminal.handle}". To reach another, resend with --agent "<words from its title>":\n${others
+        .map((t) => `  - ${t.title ?? t.handle}${t.agentIdentity ? ` (${t.agentIdentity})` : ''}`)
+        .join('\n')}`
     )
   }
   if (!sent.result.send.accepted) {
