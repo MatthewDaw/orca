@@ -10,6 +10,8 @@ import type {
 
 export const workspaceContainersApi = {
   list: () => ipcRenderer.invoke('workspaceContainers:list'),
+  agentPermissionArgs: (agent: string, sessionId: string) =>
+    ipcRenderer.invoke('workspaceContainers:agentPermissionArgs', agent, sessionId),
   create: (input: WorkspaceContainerCreateInput) =>
     ipcRenderer.invoke('workspaceContainers:create', input),
   update: (id: string, patch: WorkspaceContainerPatch) =>

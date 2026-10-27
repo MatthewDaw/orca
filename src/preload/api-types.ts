@@ -76,6 +76,8 @@ import type {
 
 export type WorkspaceContainersApi = {
   list: () => Promise<WorkspaceContainerCatalog>
+  // Launch flags that reproduce the permission an agent session last ran with, read from its transcript.
+  agentPermissionArgs: (agent: string, sessionId: string) => Promise<string | null>
   create: (input: WorkspaceContainerCreateInput) => Promise<WorkspaceContainer>
   update: (id: string, patch: WorkspaceContainerPatch) => Promise<WorkspaceContainerCatalog>
   assignTabs: (id: string, tabIds: string[]) => Promise<WorkspaceContainerCatalog>

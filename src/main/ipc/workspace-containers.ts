@@ -1,4 +1,5 @@
 import { BrowserWindow, ipcMain } from 'electron'
+import { readAgentSessionPermissionArgs } from '../agent-session-permission-args'
 import { startContainerBriefInbox } from '../containers/workspace-container-brief-inbox'
 import { WorkspaceContainerStore } from '../containers/workspace-container-store'
 import {
@@ -35,7 +36,8 @@ export function registerWorkspaceContainerHandlers(
     'workspaceContainers:writeBlueprint',
     'workspaceContainers:importContainers',
     'workspaceContainers:releaseTab',
-    'workspaceContainers:getContextPagePath'
+    'workspaceContainers:getContextPagePath',
+    'workspaceContainers:agentPermissionArgs'
   ]) {
     ipcMain.removeHandler(channel)
   }
@@ -47,6 +49,10 @@ export function registerWorkspaceContainerHandlers(
   })
 
   ipcMain.handle('workspaceContainers:list', () => store.list())
+  ipcMain.handle(
+    'workspaceContainers:agentPermissionArgs',
+    (_event, agent: string, sessionId: string) => readAgentSessionPermissionArgs(agent, sessionId)
+  )
   ipcMain.handle(
     'workspaceContainers:create',
     async (_event, input: WorkspaceContainerCreateInput) => {

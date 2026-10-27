@@ -4,6 +4,7 @@ import { installWorkspaceContainerReparentNotify } from './store/workspace-conta
 import { installContainerAgentRequests } from './store/workspace-container-agent-requests'
 import { installContainerActiveTabMemory } from './store/workspace-container-active-tab-memory'
 import { installAgentAutoResume } from './store/workspace-agent-auto-resume'
+import { installAgentPermissionRestore } from './store/workspace-agent-permission-restore'
 import { installWorkspaceContainerTabSync } from './store/workspace-container-tab-sync'
 import { installWorkspaceContainerBlueprintSync } from './store/workspace-container-blueprint-sync'
 import { Toaster } from '@/components/ui/sonner'
@@ -82,6 +83,7 @@ function App(): React.JSX.Element {
     const stopTabSync = installWorkspaceContainerTabSync()
     const stopBlueprintSync = installWorkspaceContainerBlueprintSync()
     const stopReparentNotify = installWorkspaceContainerReparentNotify()
+    const stopPermissionRestore = installAgentPermissionRestore()
     const stopAgentAutoResume = installAgentAutoResume()
     const stopAgentRequests = installContainerAgentRequests()
     const stopActiveTabMemory = installContainerActiveTabMemory()
@@ -92,6 +94,7 @@ function App(): React.JSX.Element {
       stopActiveTabMemory()
       stopReparentNotify()
       stopAgentAutoResume()
+      stopPermissionRestore()
     }
   }, [])
 

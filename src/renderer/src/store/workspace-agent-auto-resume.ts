@@ -5,6 +5,7 @@ import {
 } from '@/components/terminal/background-terminal-worktree-mount'
 import { getSleepingRecordTabId } from '@/lib/sleeping-agent-wake-requests'
 import { sendRuntimePtyInputVerified } from '@/runtime/runtime-terminal-verified-input'
+import { restoreSleepingAgentPermissions } from './workspace-agent-permission-restore'
 import { useAppStore } from '.'
 
 // Gap between wakes: resuming every agent in one frame stalls the renderer and the agents' APIs.
@@ -74,6 +75,8 @@ export function planRemainingTabs(
 }
 
 async function resumeAll(): Promise<void> {
+  // Why first: a resume reads its permission flags from the record, so they must be attached before any wake.
+  await restoreSleepingAgentPermissions()
   const records = Object.values(useAppStore.getState().sleepingAgentSessionsByPaneKey)
   const plan = planAgentAutoResume(records)
   for (const { worktreeId, tabId, continueWork } of plan) {
