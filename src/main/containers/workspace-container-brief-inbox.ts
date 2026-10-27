@@ -6,6 +6,7 @@ import {
   isContainerLaunchAgent,
   type ContainerAgentRequest
 } from '../../shared/workspace-container-agent-request'
+import { isContainerLaunchPermission } from '../../shared/container-launch-permission'
 import { isContainerWithin } from '../../shared/workspace-container-routing'
 import type { WorkspaceContainerStore } from './workspace-container-store'
 
@@ -40,6 +41,7 @@ function parseProposal(raw: string): BriefProposal | null {
       }
       const agent = stringField(value, 'agent')
       const worktreeId = stringField(value, 'worktreeId')
+      const permission = stringField(value, 'permission')
       if ((containerId || worktreeId) && action === 'launch' && isContainerLaunchAgent(agent)) {
         return {
           kind: 'request',
@@ -48,7 +50,11 @@ function parseProposal(raw: string): BriefProposal | null {
             containerId: containerId ?? null,
             ...(worktreeId ? { worktreeId } : {}),
             agent,
-            prompt: stringField(value, 'prompt') ?? ''
+            prompt: stringField(value, 'prompt') ?? '',
+            ...(isContainerLaunchPermission(permission) ? { permission } : {}),
+            ...(stringField(value, 'requesterTabId')
+              ? { requesterTabId: stringField(value, 'requesterTabId') }
+              : {})
           },
           requesterId
         }

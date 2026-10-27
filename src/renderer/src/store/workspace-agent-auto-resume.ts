@@ -24,8 +24,10 @@ export function planAgentAutoResume(
   return records.flatMap((record) => {
     const tabId = getSleepingRecordTabId(record)
     // Why only quit/live: a worktree-sleep record is an agent the person put to sleep on purpose.
+    // A quit record flagged tab-open-only is not that: it is an idle agent a previous restart left
+    // unresumed, and skipping it would leave it waiting for a click forever.
     const wasRunning = record.origin === 'quit' || record.origin === 'live'
-    if (!tabId || !wasRunning || record.restoreOnTabOpenOnly === true || seen.has(tabId)) {
+    if (!tabId || !wasRunning || seen.has(tabId)) {
       return []
     }
     seen.add(tabId)
@@ -62,9 +64,7 @@ export function planRemainingTabs(
   handledTabIds: ReadonlySet<string>
 ): { worktreeId: string; tabIds: string[] }[] {
   const asleepOnPurpose = new Set(
-    records
-      .filter((r) => r.origin === 'worktree-sleep' || r.restoreOnTabOpenOnly === true)
-      .map(getSleepingRecordTabId)
+    records.filter((r) => r.origin === 'worktree-sleep').map(getSleepingRecordTabId)
   )
   return Object.entries(tabsByWorktree).flatMap(([worktreeId, tabs]) => {
     const tabIds = (tabs ?? [])

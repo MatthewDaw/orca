@@ -1,11 +1,16 @@
 import type { ContainerAgentRequest } from '../../../shared/workspace-container-agent-request'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
+import { launchArgsForRequest } from './workspace-container-launch-permission'
 import { useAppStore } from '.'
 
 // Why the active container is borrowed: new tabs join the worktree's active container, so the
 // launch targets the right one and the person's own selection is put back straight after.
-function launchInContainer(request: Extract<ContainerAgentRequest, { kind: 'launch' }>): void {
+async function launchInContainer(
+  request: Extract<ContainerAgentRequest, { kind: 'launch' }>
+): Promise<void> {
+  // Why first: reading the starter's permission is async, and the borrowed selection below must not wait on it.
+  const agentArgs = await launchArgsForRequest(request)
   const state = useAppStore.getState()
   const container = request.containerId
     ? state.workspaceContainers.find((c) => c.id === request.containerId)
@@ -23,6 +28,7 @@ function launchInContainer(request: Extract<ContainerAgentRequest, { kind: 'laun
       agent: request.agent,
       worktreeId,
       prompt: request.prompt,
+      ...(agentArgs !== undefined ? { agentArgs } : {}),
       activate: false
     })
   } finally {
@@ -42,6 +48,6 @@ export function installContainerAgentRequests(): () => void {
         .removeWorkspaceContainer(request.containerId, { skipConfirm: true })
       return
     }
-    launchInContainer(request)
+    void launchInContainer(request)
   })
 }

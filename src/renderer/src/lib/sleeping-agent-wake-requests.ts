@@ -2,8 +2,13 @@ import { useAppStore } from '@/store'
 import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
 import { parseLegacyNumericPaneKey, parsePaneKey } from '../../../shared/stable-pane-id'
 
-// Why record identity: a replaced or cleared record drops its request, so a stale ask never wakes a later sleep.
-const requestedRecords = new WeakSet<SleepingAgentSessionRecord>()
+// Why the pane rather than the record object: a live record is rewritten
+// whenever its agent's status moves, and an object-keyed ask was lost in the gap between a startup
+// mount request and the pane connecting, leaving idle agents unresumed. A cleared record still
+// drops its ask (nothing takes it), and taking it consumes it.
+const requestedWakeKeys = new Set<string>()
+
+const wakeKey = (record: SleepingAgentSessionRecord): string => record.paneKey
 
 export function getSleepingRecordTabId(record: SleepingAgentSessionRecord): string | null {
   return (
@@ -23,11 +28,11 @@ export function requestSleepingAgentWakeOnMount(
   for (const record of Object.values(useAppStore.getState().sleepingAgentSessionsByPaneKey)) {
     const tabId = getSleepingRecordTabId(record)
     if (record.worktreeId === worktreeId && tabId !== null && wanted.has(tabId)) {
-      requestedRecords.add(record)
+      requestedWakeKeys.add(wakeKey(record))
     }
   }
 }
 
 export function takeSleepingAgentWakeRequest(record: SleepingAgentSessionRecord): boolean {
-  return requestedRecords.delete(record)
+  return requestedWakeKeys.delete(wakeKey(record))
 }

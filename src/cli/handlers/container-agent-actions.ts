@@ -2,6 +2,10 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { WorkspaceContainerCatalog } from '../../shared/workspace-container-types'
+import {
+  CONTAINER_LAUNCH_PERMISSIONS,
+  isContainerLaunchPermission
+} from '../../shared/container-launch-permission'
 import { isContainerLaunchAgent } from '../../shared/workspace-container-agent-request'
 import {
   describeContainerPath,
@@ -174,6 +178,13 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
     )
   }
   assertMayAct(catalog, target, 'start sessions')
+  const permission = getOptionalStringFlag(ctx.flags, 'permission') ?? 'inherit'
+  if (!isContainerLaunchPermission(permission)) {
+    throw new RuntimeClientError(
+      'invalid_argument',
+      `--permission must be one of: ${CONTAINER_LAUNCH_PERMISSIONS.join(', ')}.`
+    )
+  }
   await dropAgentRequest({
     action: 'launch',
     ...(isWorktreeSpaceId(target.id)
@@ -181,6 +192,8 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
       : { containerId: target.id }),
     agent,
     prompt: getOptionalStringFlag(ctx.flags, 'prompt') ?? '',
+    permission,
+    requesterTabId: process.env.ORCA_TAB_ID,
     requesterId
   })
   console.log(

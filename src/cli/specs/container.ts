@@ -114,10 +114,11 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
     path: ['container', 'launch'],
     summary: 'Start a new agent session (Claude, Codex, ...) inside a container',
     usage:
-      'orca container launch --agent <name> [--container <container>] [--prompt <text>] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'agent', 'container', 'prompt'],
+      'orca container launch --agent <name> [--container <container>] [--prompt <text>] [--permission inherit|default|bypass|manual] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'agent', 'container', 'prompt', 'permission'],
     notes: [
       "Opens a new agent tab in the container without changing the person's selection. Without --container, uses this terminal's container; only your container and ones nested under it are allowed.",
+      "By default the new session starts with the same permission settings as the agent that started it (a bypass stays a bypass, even when a Codex agent starts Claude or the reverse). --permission overrides: default = Orca's normal launch defaults, bypass = skip permission prompts, manual = every action asks.",
       "--prompt is the new session's first message. It is also told to read its container context when it has a parent brief or scope to inherit.",
       'Once the session is up, hand it work with `orca container message --to <container>`.'
     ],

@@ -41,6 +41,12 @@ describe('planAgentAutoResume', () => {
     ])
   })
 
+  it('still resumes an idle quit record that was left waiting for its tab to open', () => {
+    expect(
+      planAgentAutoResume([record('idle', { state: 'done', restoreOnTabOpenOnly: true })])
+    ).toEqual([{ worktreeId: 'wt', tabId: 'idle', continueWork: false }])
+  })
+
   it('leaves agents the person put to sleep on purpose', () => {
     expect(
       planAgentAutoResume([

@@ -1,4 +1,5 @@
 import type { TuiAgent } from './tui-agent'
+import type { ContainerLaunchPermission } from './container-launch-permission'
 import { ALL_TUI_AGENTS } from './tui-agent-display-names'
 
 export type ContainerLaunchAgent = TuiAgent
@@ -13,6 +14,9 @@ export type ContainerAgentRequest =
       worktreeId?: string
       agent: ContainerLaunchAgent
       prompt: string
+      // Permissions for the new session; `inherit` copies the terminal that asked (requesterTabId).
+      permission?: ContainerLaunchPermission
+      requesterTabId?: string
     }
 
 export function isContainerLaunchAgent(value: unknown): value is ContainerLaunchAgent {
