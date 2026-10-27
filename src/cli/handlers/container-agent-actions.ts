@@ -14,9 +14,19 @@ import type { HandlerContext } from '../dispatch'
 import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
 import { RuntimeClientError } from '../runtime-client'
 import { containerDirectory, readCatalog } from './container-catalog-file'
+import { createContainerOnNewWorktree } from './container-new-worktree'
+import {
+  callerWorktreeSpace,
+  isWorktreeSpaceId,
+  resolveWorktreeSpace
+} from './container-worktree-space'
 
 export async function createChildContainer(ctx: HandlerContext): Promise<void> {
   const catalog = await readCatalog()
+  if (ctx.flags.get('new-worktree') === true) {
+    await createContainerOnNewWorktree(ctx)
+    return
+  }
   const parentRef = getOptionalStringFlag(ctx.flags, 'parent') ?? process.env.ORCA_CONTAINER_ID
   const resolved = parentRef ? resolveContainerRef(catalog, parentRef) : null
   // Why: a terminal in a worktree's own space is in no container but still sits on a worktree,
@@ -62,21 +72,58 @@ export async function createChildContainer(ctx: HandlerContext): Promise<void> {
   )
 }
 
-function requireContainer(
+// A container ref, or a worktree's own space (by worktree name or `worktree:<id>`); with no ref,
+// this terminal's own container or, outside any container, its worktree's space.
+async function requireTarget(
+  ctx: HandlerContext,
   catalog: WorkspaceContainerCatalog,
-  ref: string | undefined,
+  explicitRef: string | undefined,
   flag: string
-): WorkspaceContainerCatalog['containers'][number] {
+): Promise<WorkspaceContainerCatalog['containers'][number]> {
+  const ref = explicitRef ?? process.env.ORCA_CONTAINER_ID
+  if (!ref) {
+    const own = await callerWorktreeSpace(ctx, catalog)
+    if (own) {
+      return own
+    }
+  }
   const resolved = ref ? resolveContainerRef(catalog, ref) : null
-  if (!resolved?.container) {
+  if (resolved?.container) {
+    return resolved.container
+  }
+  const space =
+    ref && !(resolved && resolved.candidates.length > 0)
+      ? await resolveWorktreeSpace(ctx, catalog, ref)
+      : null
+  if (space) {
+    return space
+  }
+  throw new RuntimeClientError(
+    resolved && resolved.candidates.length > 0 ? 'invalid_argument' : 'selector_not_found',
+    ref
+      ? `"${ref}" does not name exactly one container or worktree. Run \`orca container list\` and use the full path or id.`
+      : `Pass ${flag} <container>.`
+  )
+}
+
+// Why: an agent in a container acts on its own subtree; one in a worktree's own space (no
+// container) acts on anything on that worktree. A plain terminal outside Orca is trusted.
+function assertMayAct(
+  catalog: WorkspaceContainerCatalog,
+  target: WorkspaceContainerCatalog['containers'][number],
+  action: string
+): void {
+  const requesterId = process.env.ORCA_CONTAINER_ID
+  const requesterWorktree = process.env.ORCA_WORKTREE_ID
+  const allowed = requesterId
+    ? !isWorktreeSpaceId(target.id) && isContainerWithin(catalog, requesterId, target.id)
+    : !requesterWorktree || target.worktreeId === requesterWorktree
+  if (!allowed) {
     throw new RuntimeClientError(
-      resolved && resolved.candidates.length > 0 ? 'invalid_argument' : 'selector_not_found',
-      ref
-        ? `"${ref}" does not name exactly one container. Run \`orca container list\` and use the full path or id.`
-        : `Pass ${flag} <container>.`
+      'invalid_argument',
+      `You can only ${action} in your own container, ones nested under it, or (from a worktree's own space) that worktree.`
     )
   }
-  return resolved.container
 }
 
 async function dropAgentRequest(payload: Record<string, unknown>): Promise<void> {
@@ -87,18 +134,20 @@ async function dropAgentRequest(payload: Record<string, unknown>): Promise<void>
 
 export async function deleteContainer(ctx: HandlerContext): Promise<void> {
   const catalog = await readCatalog()
-  const target = requireContainer(
+  const target = await requireTarget(
+    ctx,
     catalog,
-    getOptionalStringFlag(ctx.flags, 'container'),
+    getRequiredStringFlag(ctx.flags, 'container'),
     '--container'
   )
-  const requesterId = process.env.ORCA_CONTAINER_ID
-  if (requesterId && !isContainerWithin(catalog, requesterId, target.id)) {
+  if (isWorktreeSpaceId(target.id)) {
     throw new RuntimeClientError(
       'invalid_argument',
-      'You can only delete containers nested under your own.'
+      'A worktree is not a container you can delete here. Use `orca worktree rm` to remove it.'
     )
   }
+  const requesterId = process.env.ORCA_CONTAINER_ID
+  assertMayAct(catalog, target, 'delete containers')
   if (requesterId === target.id) {
     throw new RuntimeClientError('invalid_argument', 'A container cannot delete itself.')
   }
@@ -111,9 +160,10 @@ export async function deleteContainer(ctx: HandlerContext): Promise<void> {
 export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
   const catalog = await readCatalog()
   const requesterId = process.env.ORCA_CONTAINER_ID
-  const target = requireContainer(
+  const target = await requireTarget(
+    ctx,
     catalog,
-    getOptionalStringFlag(ctx.flags, 'container') ?? requesterId,
+    getOptionalStringFlag(ctx.flags, 'container'),
     '--container'
   )
   const agent = getRequiredStringFlag(ctx.flags, 'agent')
@@ -123,21 +173,18 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
       `--agent must be one of: ${ALL_TUI_AGENTS.join(', ')}.`
     )
   }
-  if (requesterId && !isContainerWithin(catalog, requesterId, target.id)) {
-    throw new RuntimeClientError(
-      'invalid_argument',
-      'You can only start sessions in your own container or ones nested under it.'
-    )
-  }
+  assertMayAct(catalog, target, 'start sessions')
   await dropAgentRequest({
     action: 'launch',
-    containerId: target.id,
+    ...(isWorktreeSpaceId(target.id)
+      ? { worktreeId: target.worktreeId }
+      : { containerId: target.id }),
     agent,
     prompt: getOptionalStringFlag(ctx.flags, 'prompt') ?? '',
     requesterId
   })
   console.log(
-    `Requested a new ${agent} session in ${describeContainerPath(catalog, target)}. Once it is up, reach it with \`orca container message --to "${describeContainerPath(catalog, target)}"\`.`
+    `Requested a new ${agent} session in ${describeContainerPath(catalog, target)}. Once it is up, reach it with \`orca container message --to "${isWorktreeSpaceId(target.id) ? target.id : describeContainerPath(catalog, target)}"\`.`
   )
 }
 
@@ -155,7 +202,8 @@ async function terminalsInContainer(
 
 export async function listContainerAgents(ctx: HandlerContext): Promise<void> {
   const catalog = await readCatalog()
-  const target = requireContainer(
+  const target = await requireTarget(
+    ctx,
     catalog,
     getOptionalStringFlag(ctx.flags, 'container') ?? process.env.ORCA_CONTAINER_ID,
     '--container'
@@ -181,7 +229,8 @@ export async function closeContainerAgent(ctx: HandlerContext): Promise<void> {
   const catalog = await readCatalog()
   const handle = getRequiredStringFlag(ctx.flags, 'terminal')
   const requesterId = process.env.ORCA_CONTAINER_ID
-  for (const container of catalog.containers) {
+  const ownSpace = requesterId ? null : await callerWorktreeSpace(ctx, catalog)
+  for (const container of [...catalog.containers, ...(ownSpace ? [ownSpace] : [])]) {
     if (requesterId && !isContainerWithin(catalog, requesterId, container.id)) {
       continue
     }

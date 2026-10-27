@@ -245,7 +245,7 @@ export function RepoHeaderCreateWorkspaceButton({
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuItem onSelect={() => onCreateForRepo(repo.id)}>
                   <Plus className="size-3.5" />
-                  New Worktree
+                  New Container in New Worktree
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={!mainWorktreeId}

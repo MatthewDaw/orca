@@ -20,9 +20,14 @@ import { ChildToggle } from './ContainerChildToggle'
 import { ContainerUnreadBell } from './ContainerUnreadBell'
 import { depthStripeClass } from './workspace-container-depth-stripes'
 import { createWorkspaceContainerOnWorktree } from './WorktreeContainerRows'
+import { canRetargetContainer, startContainerDragAutoScroll } from './workspace-container-drag'
+import {
+  dropZoneFor,
+  moveContainerToWorktree,
+  placeContainer
+} from './workspace-container-placement'
 import {
   buildWorkspaceContainerTree,
-  containerSortKey,
   type WorkspaceContainerNode
 } from './workspace-container-tree'
 
@@ -30,72 +35,15 @@ const NO_CONTAINERS: readonly WorkspaceContainer[] = []
 const NO_WORKTREES: readonly Worktree[] = []
 
 let draggedContainerId: string | null = null
+let stopAutoScroll: (() => void) | null = null
 
-type DropZone = 'before' | 'after' | 'child'
-
-// Why: wide bands (top/bottom quarter = reorder, middle half = nest) so a drop never needs
-// pixel precision, and the same zone drives the live preview before release.
-function dropZoneFor(event: React.DragEvent<HTMLElement>): DropZone {
-  const rect = event.currentTarget.getBoundingClientRect()
-  const ratio = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5
-  return ratio < 0.25 ? 'before' : ratio > 0.75 ? 'after' : 'child'
-}
-
-// A dropped container lands beside or inside the target; a different worktree retargets it
-// first, and a rejected drop (cycle) is simply ignored.
-async function placeContainer(id: string, targetId: string, zone: DropZone): Promise<void> {
-  const { workspaceContainers, updateWorkspaceContainer } = useAppStore.getState()
-  const dragged = workspaceContainers.find((c) => c.id === id)
-  const target = workspaceContainers.find((c) => c.id === targetId)
-  if (!dragged || !target || id === targetId) {
-    return
-  }
-  try {
-    if (dragged.worktreeId !== target.worktreeId) {
-      await updateWorkspaceContainer(id, { worktreeId: target.worktreeId })
-    }
-    if (zone === 'child') {
-      await updateWorkspaceContainer(id, {
-        parentContainerId: target.id,
-        sortOrder: Date.now()
-      })
-      return
-    }
-    const siblings = workspaceContainers
-      .filter(
-        (c) =>
-          c.id !== id &&
-          c.worktreeId === target.worktreeId &&
-          c.parentContainerId === target.parentContainerId
-      )
-      .sort((a, b) => containerSortKey(a) - containerSortKey(b))
-    const at = siblings.findIndex((c) => c.id === target.id)
-    const targetKey = containerSortKey(target)
-    const neighbor = siblings[zone === 'before' ? at - 1 : at + 1]
-    const neighborKey = neighbor
-      ? containerSortKey(neighbor)
-      : targetKey + (zone === 'before' ? -1000 : 1000)
-    await updateWorkspaceContainer(id, {
-      parentContainerId: target.parentContainerId,
-      sortOrder: (targetKey + neighborKey) / 2
-    })
-  } catch {
-    // Invalid placement (e.g. into its own descendant): leave the tree unchanged.
-  }
-}
-
-async function moveContainerToWorktree(id: string, worktreeId: string): Promise<void> {
-  const { workspaceContainers, updateWorkspaceContainer } = useAppStore.getState()
-  const dragged = workspaceContainers.find((c) => c.id === id)
-  if (!dragged) {
-    return
-  }
-  // Same worktree: dropping on the box un-nests; another worktree: retarget (releases its tabs).
-  await updateWorkspaceContainer(
-    id,
-    dragged.worktreeId === worktreeId ? { parentContainerId: null } : { worktreeId }
+const canDropOnWorktree = (worktreeId: string): boolean =>
+  Boolean(draggedContainerId) &&
+  canRetargetContainer(
+    useAppStore.getState().workspaceContainers,
+    draggedContainerId ?? '',
+    worktreeId
   )
-}
 
 const stopBubble = (event: React.SyntheticEvent): void => event.stopPropagation()
 
@@ -109,6 +57,7 @@ function ContainerCard({
   repoWorktrees: readonly Worktree[]
 }): React.JSX.Element {
   const { container } = node
+  const containers = useAppStore((s) => s.workspaceContainers ?? NO_CONTAINERS)
   const [renaming, setRenaming] = useState(false)
   const childrenCollapsed = useAppStore((s) => s.collapsedContainerIds[container.id] === true)
   const setContainersCollapsed = useAppStore((s) => s.setContainersCollapsed)
@@ -153,11 +102,7 @@ function ContainerCard({
     <div
       onContextMenu={stopBubble}
       onDoubleClick={stopBubble}
-      className={cn(
-        depth === 0 && 'ml-1',
-        // Why: a parent with children wraps them in its own outlined surface, like worktree lineage.
-        node.children.length > 0 && 'rounded-lg border border-border/60 bg-accent/20 p-1'
-      )}
+      className={cn(depth === 0 && 'ml-1')}
     >
       <ContextMenu>
         <ContextMenuTrigger asChild>
@@ -167,14 +112,22 @@ function ContainerCard({
             draggable={!renaming}
             onDragStart={(event) => {
               draggedContainerId = container.id
+              stopAutoScroll?.()
+              stopAutoScroll = startContainerDragAutoScroll()
               event.dataTransfer.effectAllowed = 'move'
               event.dataTransfer.setData('text/plain', container.id)
             }}
             onDragEnd={() => {
               draggedContainerId = null
+              stopAutoScroll?.()
+              stopAutoScroll = null
             }}
             onDragOver={(event) => {
-              if (draggedContainerId && draggedContainerId !== container.id) {
+              if (
+                draggedContainerId &&
+                draggedContainerId !== container.id &&
+                canDropOnWorktree(container.worktreeId)
+              ) {
                 event.preventDefault()
                 event.stopPropagation()
                 event.currentTarget.dataset.drop = dropZoneFor(event)
@@ -185,7 +138,11 @@ function ContainerCard({
             }}
             onDrop={(event) => {
               delete event.currentTarget.dataset.drop
-              if (draggedContainerId && draggedContainerId !== container.id) {
+              if (
+                draggedContainerId &&
+                draggedContainerId !== container.id &&
+                canDropOnWorktree(container.worktreeId)
+              ) {
                 event.preventDefault()
                 event.stopPropagation()
                 void placeContainer(draggedContainerId, container.id, dropZoneFor(event))
@@ -280,7 +237,10 @@ function ContainerCard({
               {repoWorktrees.map((w) => (
                 <ContextMenuItem
                   key={w.id}
-                  disabled={w.id === container.worktreeId}
+                  disabled={
+                    w.id === container.worktreeId ||
+                    !canRetargetContainer(containers, container.id, w.id)
+                  }
                   onSelect={() => void update(container.id, { worktreeId: w.id })}
                 >
                   {w.displayName || w.branch?.replace(/^refs\/heads\//, '') || w.path}
@@ -338,7 +298,7 @@ export function WorktreeContainerBox({
         'data-[drop=worktree]:ring-2 data-[drop=worktree]:ring-ring'
       )}
       onDragOver={(event) => {
-        if (draggedContainerId) {
+        if (draggedContainerId && canDropOnWorktree(worktree.id)) {
           event.preventDefault()
           event.currentTarget.dataset.drop = 'worktree'
         }
@@ -354,7 +314,7 @@ export function WorktreeContainerBox({
       }}
       onDrop={(event) => {
         delete event.currentTarget.dataset.drop
-        if (draggedContainerId) {
+        if (draggedContainerId && canDropOnWorktree(worktree.id)) {
           event.preventDefault()
           void moveContainerToWorktree(draggedContainerId, worktree.id)
           draggedContainerId = null

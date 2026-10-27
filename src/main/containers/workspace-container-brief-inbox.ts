@@ -39,12 +39,14 @@ function parseProposal(raw: string): BriefProposal | null {
         return { kind: 'request', request: { kind: 'delete', containerId }, requesterId }
       }
       const agent = stringField(value, 'agent')
-      if (containerId && action === 'launch' && isContainerLaunchAgent(agent)) {
+      const worktreeId = stringField(value, 'worktreeId')
+      if ((containerId || worktreeId) && action === 'launch' && isContainerLaunchAgent(agent)) {
         return {
           kind: 'request',
           request: {
             kind: 'launch',
-            containerId,
+            containerId: containerId ?? null,
+            ...(worktreeId ? { worktreeId } : {}),
             agent,
             prompt: stringField(value, 'prompt') ?? ''
           },
@@ -106,13 +108,15 @@ async function drainInbox(
     const proposal = parseProposal(await readFile(path, 'utf8').catch(() => ''))
     await rm(path, { force: true })
     if (proposal?.kind === 'request') {
+      // Why: a launch with no container id targets a worktree's bare space, which the CLI has already scoped to the caller's worktree.
       if (
-        await mayActOn(
+        proposal.request.containerId === null ||
+        (await mayActOn(
           store,
           proposal.requesterId,
           proposal.request.containerId,
           proposal.request.kind
-        )
+        ))
       ) {
         onRequest(proposal.request)
       }

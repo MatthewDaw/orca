@@ -7,13 +7,16 @@ import { useAppStore } from '.'
 // launch targets the right one and the person's own selection is put back straight after.
 function launchInContainer(request: Extract<ContainerAgentRequest, { kind: 'launch' }>): void {
   const state = useAppStore.getState()
-  const container = state.workspaceContainers.find((c) => c.id === request.containerId)
-  if (!container) {
+  const container = request.containerId
+    ? state.workspaceContainers.find((c) => c.id === request.containerId)
+    : null
+  const worktreeId = container ? container.worktreeId : request.worktreeId
+  if (!worktreeId || (request.containerId && !container)) {
     return
   }
-  const { worktreeId } = container
   const previous = state.activeContainerIdByWorktree[worktreeId] ?? null
-  state.setActiveWorkspaceContainer(worktreeId, container.id)
+  // Why: with no container the launch borrows the worktree's bare space (no active container).
+  state.setActiveWorkspaceContainer(worktreeId, container ? container.id : null)
   try {
     launchAgentInNewTab({
       requestId: newAgentLaunchRequestId(),

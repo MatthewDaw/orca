@@ -73,16 +73,29 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
   {
     path: ['container', 'create'],
     summary: 'Create a child container under this container (or another one)',
-    usage: 'orca container create --name <name> [--parent <container>] [--focus <text>] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'name', 'parent', 'focus'],
+    usage:
+      'orca container create --name <name> [--parent <container>] [--focus <text>] [--new-worktree [--repo <selector>|--project <id-or-name>] [--base-branch <ref>]] [--json]',
+    allowedFlags: [
+      ...GLOBAL_FLAGS,
+      'name',
+      'parent',
+      'focus',
+      'new-worktree',
+      'repo',
+      'project',
+      'base-branch'
+    ],
     notes: [
       "The child lives on the parent's worktree, starts with no tabs, and inherits the parent's scope and brief.",
       "Without --parent, uses this terminal's container (ORCA_CONTAINER_ID). Names must be unique among siblings, and a container can have at most 12 children.",
+      "From a terminal in a worktree's own space (no container), the new container is created at the top level of that worktree.",
+      "--new-worktree instead creates a new git worktree (inheriting this repo unless --repo or --project is given) and does not nest it. A worktree's own space is itself a container: reach it with `worktree:<id>` or its name, start sessions in it with `orca container launch`. Without --new-worktree the container always lives on the current worktree.",
       "--focus sets the child's one-line main focus. A person (or you, via `orca container message`) still has to open an agent in it."
     ],
     examples: [
       'orca container create --name "court-overlay" --focus "Render the court overlay for basketball"',
-      'orca container create --parent "computer_vision/basketball" --name "shot-arc"'
+      'orca container create --parent "computer_vision/basketball" --name "shot-arc"',
+      'orca container create --new-worktree --name "cloud-audit"'
     ]
   },
   {

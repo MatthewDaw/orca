@@ -17,6 +17,11 @@ import {
 } from '../../shared/workspace-container-routing'
 import { containerDirectory, readCatalog } from './container-catalog-file'
 import {
+  callerWorktreeSpace,
+  isWorktreeSpaceId,
+  resolveWorktreeSpace
+} from './container-worktree-space'
+import {
   closeContainerAgent,
   createChildContainer,
   deleteContainer,
@@ -83,7 +88,14 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
   }
   const catalog = await readCatalog()
   const toRef = getRequiredStringFlag(ctx.flags, 'to')
-  const target = resolveContainerRef(catalog, toRef)
+  const found = resolveContainerRef(catalog, toRef)
+  // Why: a worktree's own space is a container too, reached by its worktree name or `worktree:<id>`.
+  const candidates = found.container ? [] : found.candidates
+  const space =
+    found.container || candidates.length > 0
+      ? null
+      : await resolveWorktreeSpace(ctx, catalog, toRef)
+  const target = { container: found.container ?? space, candidates }
   if (!target.container) {
     const options = target.candidates.map(
       (c) => `  - ${describeContainerPath(catalog, c)} (id ${c.id})`
@@ -92,11 +104,14 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
       target.candidates.length > 0 ? 'invalid_argument' : 'selector_not_found',
       target.candidates.length > 0
         ? `"${toRef}" matches several containers; use the full path or id:\n${options.join('\n')}`
-        : `No container matches "${toRef}". Run \`orca container list\` for the current names.`
+        : `No container or worktree matches "${toRef}". Run \`orca container list\` for the current names.`
     )
   }
   const senderRef = getOptionalStringFlag(ctx.flags, 'from') ?? process.env.ORCA_CONTAINER_ID
-  const sender = senderRef ? resolveContainerRef(catalog, senderRef).container : null
+  const sender = senderRef
+    ? (resolveContainerRef(catalog, senderRef).container ??
+      (isWorktreeSpaceId(senderRef) ? await resolveWorktreeSpace(ctx, catalog, senderRef) : null))
+    : await callerWorktreeSpace(ctx, catalog)
   const listed = await ctx.client.call<RuntimeTerminalListResult>('terminal.list', {
     worktree: `id:${target.container.worktreeId}`,
     includeVisualLayouts: false

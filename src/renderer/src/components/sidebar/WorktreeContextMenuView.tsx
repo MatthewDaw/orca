@@ -190,7 +190,11 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
                   'Copy Worktree Name'
                 )}
               </DropdownMenuItem>
-              <WorktreeContainerMenuItems worktreeId={worktree.id} disabled={isDeleting} />
+              <WorktreeContainerMenuItems
+                worktreeId={worktree.id}
+                repoId={worktree.repoId}
+                disabled={isDeleting}
+              />
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={handleTogglePin} disabled={isDeleting}>
                 {worktree.isPinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
