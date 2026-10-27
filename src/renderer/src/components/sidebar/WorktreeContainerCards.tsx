@@ -154,14 +154,14 @@ function ContainerCard({
             className={cn(
               'relative flex cursor-pointer flex-col rounded-lg border py-1.5 pr-1.5 pl-3 select-none',
               // Why: the drop preview — a line where it would land, or a ring on the new parent.
-              'data-[drop=child]:bg-accent data-[drop=child]:ring-2 data-[drop=child]:ring-ring',
+              'data-[drop=child]:bg-accent data-[drop=child]:ring-2 data-[drop=child]:ring-inset data-[drop=child]:ring-ring',
               "data-[drop=before]:before:absolute data-[drop=before]:before:inset-x-0 data-[drop=before]:before:-top-1 data-[drop=before]:before:h-0.5 data-[drop=before]:before:rounded data-[drop=before]:before:bg-ring data-[drop=before]:before:content-['']",
               "data-[drop=after]:after:absolute data-[drop=after]:after:inset-x-0 data-[drop=after]:after:-bottom-1 data-[drop=after]:after:h-0.5 data-[drop=after]:after:rounded data-[drop=after]:after:bg-ring data-[drop=after]:after:content-['']",
               'border-border bg-accent/40 border-l-[3px]',
               depthStripeClass(depth, active),
               // Why: the selected container must stand out at a glance, so it gets a full ring and a tinted fill.
               active
-                ? 'bg-primary/15 text-accent-foreground ring-2 ring-primary'
+                ? 'bg-primary/15 text-accent-foreground ring-2 ring-inset ring-primary'
                 : 'worktree-sidebar-card-hover'
             )}
             onClick={select}
