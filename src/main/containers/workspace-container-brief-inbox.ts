@@ -153,14 +153,15 @@ async function drainInbox(
 }
 
 // Why: an agent reshapes only its own subtree (deleting never reaches itself or its ancestors);
-// a request with no requester comes from a person's plain terminal and is trusted.
+// starting a session only adds a conversation, so it is allowed anywhere. A request with no
+// requester comes from a person's plain terminal and is trusted.
 async function mayActOn(
   store: WorkspaceContainerStore,
   requesterId: string | undefined,
   targetId: string,
   action: 'create' | 'launch' | 'delete'
 ): Promise<boolean> {
-  if (!requesterId) {
+  if (!requesterId || action === 'launch') {
     return true
   }
   const catalog = await store.list()

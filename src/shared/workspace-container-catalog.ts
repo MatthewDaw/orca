@@ -283,7 +283,7 @@ export function renderContainerContextPage(
   lines.push(
     '## Delegating',
     '',
-    'Split work into child containers with `orca container create --name <name> --focus <text>`, start a session in one with `orca container launch --container <path> --agent <claude|codex|...> --prompt <task>` (any agent type, including in your own container), list sessions with `orca container agents`, close one with `orca container close-agent --terminal <handle>`, and remove containers you no longer need with `orca container rm --container <path>` (this closes its sessions). You can only act on your own container and the ones nested under it.',
+    'Split work into child containers with `orca container create --name <name> --focus <text>`, start a session in one with `orca container launch --container <path> --agent <claude|codex|...> --prompt <task>` (any agent type, including in your own container), list sessions with `orca container agents`, close one with `orca container close-agent --terminal <handle>`, and remove containers you no longer need with `orca container rm --container <path>` (this closes its sessions). You can start sessions in any container; creating, closing and removing are limited to your own container and the ones nested under it.',
     ''
   )
   lines.push('## Connections', '')

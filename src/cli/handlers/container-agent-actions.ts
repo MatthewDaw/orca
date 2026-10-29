@@ -177,7 +177,7 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
       `--agent must be one of: ${ALL_TUI_AGENTS.join(', ')}.`
     )
   }
-  assertMayAct(catalog, target, 'start sessions')
+  // Why: starting a session only adds a conversation, so any agent may start one in any container.
   const permission = getOptionalStringFlag(ctx.flags, 'permission') ?? 'inherit'
   if (!isContainerLaunchPermission(permission)) {
     throw new RuntimeClientError(
