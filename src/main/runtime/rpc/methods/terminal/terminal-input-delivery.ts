@@ -171,13 +171,29 @@ export function deferSendWhileUserComposes(
     interrupt?: unknown
     agentPrompt?: true
     deferWhileUserTyping?: true
+    inputKind?: string
+    client?: { id: string; type?: string }
+    waitSubmitMs?: number
+    requireWriteSettlement?: true
+    resolvedLaunchDraft?: unknown
+    requireAgentStatus?: string
   },
   ptyId: string | null | undefined
 ): { send: RuntimeTerminalSend } | null {
   const { terminal, text } = params
   const enter = params.enter === true
+  // Why: every programmatic sender waits for the person's draft, not only the ones that ask. A
+  // person's own input (mobile), query replies, and callers that need a synchronous receipt go
+  // straight on; agent prompts among those still wait inside the runtime before writing.
+  const needsReceipt =
+    params.waitSubmitMs !== undefined ||
+    params.requireWriteSettlement === true ||
+    params.resolvedLaunchDraft !== undefined ||
+    params.requireAgentStatus !== undefined
   if (
-    !params.deferWhileUserTyping ||
+    (!params.deferWhileUserTyping && needsReceipt) ||
+    params.client?.type === 'mobile' ||
+    params.inputKind === 'query-reply' ||
     params.interrupt === true ||
     !ptyId ||
     !isUserComposing(ptyId)

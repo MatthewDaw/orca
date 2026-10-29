@@ -54,7 +54,9 @@ function parseProposal(raw: string): BriefProposal | null {
             ...(isContainerLaunchPermission(permission) ? { permission } : {}),
             ...(stringField(value, 'requesterTabId')
               ? { requesterTabId: stringField(value, 'requesterTabId') }
-              : {})
+              : {}),
+            ...('fresh' in value && value.fresh === true ? { fresh: true } : {}),
+            ...('toDefault' in value && value.toDefault === true ? { toDefault: true } : {})
           },
           requesterId
         }

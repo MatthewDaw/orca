@@ -21,6 +21,7 @@ import {
   buildAgentPromptPasteBytes
 } from '../../../../shared/agent-prompt-injection'
 import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../shared/layout-owner-switch'
+import { waitUntilUserStopsComposing } from '../../terminal-human-draft'
 
 export abstract class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithResolveTerminalPane {
   protected abstract writeTerminalAction(
@@ -213,6 +214,19 @@ export abstract class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntim
     }
   }
 
+  private ptyIdForDraftCheck(handle: string): string | null {
+    try {
+      return (
+        this.getLivePtyForHandle(handle)?.pty.ptyId ??
+        this.resolveLiveLeafForHandle(handle)?.ptyId ??
+        null
+      )
+    } catch {
+      // A stale handle fails on the send path below with its usual error.
+      return null
+    }
+  }
+
   async sendTerminalAgentPrompt(
     handle: string,
     prompt: string,
@@ -238,6 +252,14 @@ export abstract class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntim
     if (starting) {
       const target = await starting
       return { ...(await this.sendTerminalAgentPrompt(target, prompt, options)), handle }
+    }
+    // Why: a prompt from an agent or Orca must never land inside what the person is typing there;
+    // it waits until they send or clear their draft. A launch prompt goes to a fresh terminal.
+    if (options.inputKind !== 'launch') {
+      const typedPtyId = this.ptyIdForDraftCheck(handle)
+      if (typedPtyId) {
+        await waitUntilUserStopsComposing(typedPtyId, options.signal)
+      }
     }
     const pty = this.getLivePtyForHandle(handle)
     if (pty) {

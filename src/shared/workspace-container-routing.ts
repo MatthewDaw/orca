@@ -231,16 +231,20 @@ export function rankTargetTerminals<T extends TerminalLike>(
   const agents = inContainer.filter((t) => t.agentIdentity)
   const pool = agents.length > 0 ? agents : inContainer
   const wanted = hint ? wordsOf(hint) : []
-  if (wanted.length === 0) {
-    return [...pool]
-  }
   const score = (t: T): number => {
     const haystack = normalize([t.agentIdentity, t.title, t.paneTitle].filter(Boolean).join(' '))
     return wanted.filter((word) => haystack.includes(word)).length
   }
+  // Why: the default conversation is where a container's work lives, so it wins unless the hint
+  // matches another conversation better.
+  const defaultTabId = container.defaultConversation?.tabId
+  const isDefault = (t: T): number => (t.tabId === defaultTabId ? 1 : 0)
   return pool
     .map((terminal, index) => ({ terminal, index, score: score(terminal) }))
-    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .sort(
+      (a, b) =>
+        b.score - a.score || isDefault(b.terminal) - isDefault(a.terminal) || a.index - b.index
+    )
     .map((entry) => entry.terminal)
 }
 

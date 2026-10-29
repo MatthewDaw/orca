@@ -17,6 +17,7 @@ import {
 import type { WorkspaceContainer } from '../../../../shared/workspace-container-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { ChildToggle } from './ContainerChildToggle'
+import { ContainerDefaultConversationMenuItem } from './ContainerDefaultConversationMenuItem'
 import { ContainerUnreadBell } from './ContainerUnreadBell'
 import { depthStripeClass } from './workspace-container-depth-stripes'
 import { createWorkspaceContainerOnWorktree } from './WorktreeContainerRows'
@@ -220,6 +221,8 @@ function ContainerCard({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContainerDefaultConversationMenuItem container={container} />
+          <ContextMenuSeparator />
           <ContextMenuItem
             onSelect={() =>
               void createWorkspaceContainerOnWorktree(container.worktreeId, container.id)

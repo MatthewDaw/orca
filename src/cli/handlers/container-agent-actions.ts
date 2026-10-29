@@ -130,7 +130,7 @@ function assertMayAct(
   }
 }
 
-async function dropAgentRequest(payload: Record<string, unknown>): Promise<void> {
+export async function dropAgentRequest(payload: Record<string, unknown>): Promise<void> {
   const inbox = join(containerDirectory(), 'inbox')
   await mkdir(inbox, { recursive: true })
   await writeFile(join(inbox, `${randomUUID()}.json`), JSON.stringify(payload))
@@ -194,7 +194,8 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
     prompt: getOptionalStringFlag(ctx.flags, 'prompt') ?? '',
     permission,
     requesterTabId: process.env.ORCA_TAB_ID,
-    requesterId
+    requesterId,
+    ...(ctx.flags.has('fresh') ? { fresh: true } : {})
   })
   console.log(
     `Requested a new ${agent} session in ${describeContainerPath(catalog, target)}. Once it is up, reach it with \`orca container message --to "${isWorktreeSpaceId(target.id) ? target.id : describeContainerPath(catalog, target)}"\`.`

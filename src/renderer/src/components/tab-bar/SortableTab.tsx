@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
-import { X, Minimize2, Pin } from 'lucide-react'
+import { X, Minimize2 } from 'lucide-react'
+import { TabTitleMarks } from './DefaultConversationTab'
 import { stripLeadingAgentTitleDecoration } from '../../../../shared/agent-title-decoration'
 import { getAgentLabel } from '@/lib/agent-catalog'
 import { basename } from '@/lib/path'
@@ -261,9 +262,7 @@ export default function SortableTab({
         isActive={isActive}
         progress={programProgress}
       />
-      {isPinned && !isEditing && (
-        <Pin className="mr-1 size-3 shrink-0 text-muted-foreground" aria-hidden />
-      )}
+      {!isEditing && <TabTitleMarks isPinned={isPinned} terminalTabId={tab.id} />}
       {isEditing ? (
         <Input
           ref={setRenameInputElement}
@@ -400,7 +399,6 @@ export default function SortableTab({
           </TabHoverCard>
         )}
       </div>
-
       <SortableTabContextMenu
         sessionSwitchOpening={openingId}
         onSessionSwitchComplete={onComplete}

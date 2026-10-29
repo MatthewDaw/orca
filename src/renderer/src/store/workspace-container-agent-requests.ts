@@ -2,6 +2,10 @@ import type { ContainerAgentRequest } from '../../../shared/workspace-container-
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import { launchArgsForRequest } from './workspace-container-launch-permission'
+import {
+  containerHasOpenConversation,
+  openDefaultConversation
+} from './workspace-container-default-conversation-actions'
 import { useAppStore } from '.'
 
 // Why the active container is borrowed: new tabs join the worktree's active container, so the
@@ -17,6 +21,22 @@ async function launchInContainer(
     : null
   const worktreeId = container ? container.worktreeId : request.worktreeId
   if (!worktreeId || (request.containerId && !container)) {
+    return
+  }
+  // Why: work arriving at a container with no conversation open goes to its default conversation,
+  // which keeps its own permissions, instead of starting a stranger.
+  if (
+    container &&
+    (request.toDefault ||
+      (container.defaultConversation &&
+        !request.fresh &&
+        !containerHasOpenConversation(state, container)))
+  ) {
+    await openDefaultConversation(container.id, {
+      activate: false,
+      prompt: request.prompt,
+      ...(agentArgs !== undefined ? { agentArgs } : {})
+    })
     return
   }
   const previous = state.activeContainerIdByWorktree[worktreeId] ?? null

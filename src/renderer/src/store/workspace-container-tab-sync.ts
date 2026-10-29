@@ -3,6 +3,10 @@ import {
   planWorkspaceContainerMetadataSync,
   planWorkspaceContainerTabSync
 } from './workspace-container-tab-sync-plan'
+import {
+  conversationsByTerminalTab,
+  planDefaultConversation
+} from './workspace-container-default-conversation'
 import { useAppStore } from '.'
 
 function collectTabIds(tabsByWorktree: Readonly<Record<string, Tab[]>>): Map<string, Set<string>> {
@@ -44,6 +48,20 @@ function installWorkspaceContainerMetadataSync(): () => void {
         terminalTabIds: update.terminalTabIds,
         worktreeLabel: update.worktreeLabel
       })
+    }
+    const conversations = conversationsByTerminalTab(
+      state.agentStatusByPaneKey,
+      state.sleepingAgentSessionsByPaneKey
+    )
+    for (const container of state.workspaceContainers) {
+      const owned = new Set(container.tabIds)
+      const terminalTabIds = (state.unifiedTabsByWorktree[container.worktreeId] ?? [])
+        .filter((tab) => tab.contentType === 'terminal' && owned.has(tab.id))
+        .map((tab) => tab.entityId)
+      const next = planDefaultConversation(container, terminalTabIds, conversations)
+      if (next) {
+        void api.update(container.id, { defaultConversation: next })
+      }
     }
   }
   const unsubscribe = useAppStore.subscribe(() => {

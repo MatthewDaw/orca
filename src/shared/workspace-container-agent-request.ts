@@ -17,6 +17,11 @@ export type ContainerAgentRequest =
       // Permissions for the new session; `inherit` copies the terminal that asked (requesterTabId).
       permission?: ContainerLaunchPermission
       requesterTabId?: string
+      // Start a new session even when the container's default conversation could be resumed.
+      fresh?: boolean
+      // A message for a container with no live terminal: goes to its default conversation however
+      // it stands (asleep in its tab, closed, or never started).
+      toDefault?: boolean
     }
 
 export function isContainerLaunchAgent(value: unknown): value is ContainerLaunchAgent {

@@ -183,6 +183,20 @@ describe('pickTargetTerminal', () => {
     ])
   })
 
+  it('prefers the default conversation unless the hint matches another one', () => {
+    const withDefault = {
+      ...target,
+      defaultConversation: {
+        tabId: 'b',
+        agent: 'codex' as const,
+        providerSession: { key: 'session_id' as const, id: 'sess' }
+      }
+    }
+    expect(pickTargetTerminal(terminals, withDefault)?.handle).toBe('h3')
+    expect(pickTargetTerminal(terminals, withDefault, 'claude')?.handle).toBe('h2')
+    expect(pickTargetTerminal(terminals, withDefault, 'whatever')?.handle).toBe('h3')
+  })
+
   it('returns null when the container has no terminal', () => {
     expect(pickTargetTerminal(terminals, container('y', 'y', 'w'))).toBeNull()
   })

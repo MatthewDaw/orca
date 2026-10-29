@@ -29,7 +29,8 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
     allowedFlags: [...GLOBAL_FLAGS, 'to', 'text', 'agent', 'from', 'exchange'],
     notes: [
       '--to takes a container id, a path such as "AI Analysis/pickleball" or "computer_vision/basketball", or the words of its path. Paths resolve against the live container tree on every call, so renames and re-nesting never break routing; use the new name after a rename.',
-      'The message is typed into the first agent terminal of the target container. --agent picks among several conversations in the container: give the agent name (codex, claude, ...) or words from the tab title of the conversation, and the best title match wins. Run `orca container agents --container <path>` to see the titles. With no hint the first agent is used and the output lists the others.',
+      "The message goes to the target container's default conversation (marked in its tab strip), or its first agent terminal when it has no default open. --agent picks another conversation: give the agent name (codex, claude, ...) or words from the tab title of the conversation, and the best title match wins. Only pass --agent when you have a clear reason to reach a conversation other than the default. Run `orca container agents --container <path>` to see the titles.",
+      'If the container has no conversation open, its default conversation is resumed with your message, or a new Claude session is started with it when it never had one.',
       "The recipient sees who sent it and the command to reply. The sender is this terminal's container (ORCA_CONTAINER_ID); pass --from <container> outside a container terminal.",
       'Replies carry --exchange <n>; copy it from the message you are answering. After 8 automatic exchanges the command refuses, so two agents cannot loop forever: stop and summarize for the user.',
       'An ambiguous name lists the matching containers; retry with the full path or the id.'
@@ -114,12 +115,13 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
     path: ['container', 'launch'],
     summary: 'Start a new agent session (Claude, Codex, ...) inside a container',
     usage:
-      'orca container launch --agent <name> [--container <container>] [--prompt <text>] [--permission inherit|default|bypass|manual] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'agent', 'container', 'prompt', 'permission'],
+      'orca container launch --agent <name> [--container <container>] [--prompt <text>] [--permission inherit|default|bypass|manual] [--fresh] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'agent', 'container', 'prompt', 'permission', 'fresh'],
     notes: [
       "Opens a new agent tab in the container without changing the person's selection. Without --container, uses this terminal's container. Any container or worktree space is allowed.",
       "By default the new session starts with the same permission settings as the agent that started it (a bypass stays a bypass, even when a Codex agent starts Claude or the reverse). --permission overrides: default = Orca's normal launch defaults, bypass = skip permission prompts, manual = every action asks.",
       "--prompt is the new session's first message. It is also told to read its container context when it has a parent brief or scope to inherit.",
+      'When the container has no Claude or Codex conversation open but has a default conversation, that conversation is resumed (with its own permissions) and --prompt is sent to it instead of starting a new session. Pass --fresh to start a new session anyway.',
       'Once the session is up, hand it work with `orca container message --to <container>`.'
     ],
     examples: [

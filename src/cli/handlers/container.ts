@@ -25,6 +25,7 @@ import {
   closeContainerAgent,
   createChildContainer,
   deleteContainer,
+  dropAgentRequest,
   launchContainerAgent,
   listContainerAgents
 } from './container-agent-actions'
@@ -124,6 +125,35 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
   const terminal = ranked[0] ?? null
   const others = ranked.slice(1)
   const targetPath = describeContainerPath(catalog, target.container)
+  const text = formatContainerMessage(
+    catalog,
+    sender,
+    getRequiredStringFlag(ctx.flags, 'text'),
+    exchange
+  )
+  if (!terminal && !isWorktreeSpaceId(target.container.id)) {
+    // Why: nobody is in the container, so its default conversation picks the message up.
+    const fallback = target.container.defaultConversation
+    await dropAgentRequest({
+      action: 'launch',
+      containerId: target.container.id,
+      agent: fallback?.agent ?? 'claude',
+      prompt: text,
+      permission: 'inherit',
+      requesterTabId: process.env.ORCA_TAB_ID,
+      requesterId: process.env.ORCA_CONTAINER_ID,
+      toDefault: true
+    })
+    const how = fallback
+      ? `its default ${fallback.agent} conversation is being resumed`
+      : 'a new Claude session (now its default conversation) is being started'
+    console.log(
+      ctx.json
+        ? JSON.stringify({ to: targetPath, resumed: Boolean(fallback), started: !fallback })
+        : `${targetPath} had no conversation open, so ${how} with your message.`
+    )
+    return
+  }
   if (!terminal) {
     throw new RuntimeClientError(
       'selector_not_found',
@@ -134,12 +164,7 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
     'terminal.send',
     {
       terminal: terminal.handle,
-      text: formatContainerMessage(
-        catalog,
-        sender,
-        getRequiredStringFlag(ctx.flags, 'text'),
-        exchange
-      ),
+      text,
       enter: true,
       interrupt: false,
       // Why: an agent TUI reads text plus Enter in one write as a paste and keeps the Enter as a

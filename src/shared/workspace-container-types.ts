@@ -5,6 +5,15 @@ export type WorkspaceContainerConnection = {
 
 export type WorkspaceContainerPosition = { x: number; y: number }
 
+// The conversation a container falls back to: resumed when work arrives and none is open, and the
+// one container messages reach first.
+export type WorkspaceContainerDefaultConversation = {
+  // Terminal tab id hosting it while open; kept after the tab closes so the session can resume.
+  tabId?: string
+  agent: 'claude' | 'codex'
+  providerSession: { key: 'session_id' | 'conversation_id'; id: string }
+}
+
 export type WorkspaceContainer = {
   id: string
   worktreeId: string
@@ -25,6 +34,7 @@ export type WorkspaceContainer = {
   terminalTabIds?: string[]
   // Display name of the worktree, kept current by the renderer so paths read the way the sidebar does.
   worktreeLabel?: string
+  defaultConversation?: WorkspaceContainerDefaultConversation
   // Sidebar order among siblings; containers without one sort by creation time.
   sortOrder?: number
   createdAt: number
@@ -58,6 +68,7 @@ export type WorkspaceContainerPatch = Partial<
     | 'brief'
     | 'terminalTabIds'
     | 'worktreeLabel'
+    | 'defaultConversation'
   >
 >
 
