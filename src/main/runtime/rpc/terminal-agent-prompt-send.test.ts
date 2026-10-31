@@ -53,6 +53,45 @@ describe('terminal agent prompt send RPC', () => {
     expect(sendTerminal).not.toHaveBeenCalled()
   })
 
+  it('puts the sender header in front of a prompt only when the target is an agent', async () => {
+    const sendTerminal = vi.fn().mockResolvedValue({ handle: 't', accepted: true, bytesWritten: 1 })
+    const sendTerminalAgentPrompt = vi
+      .fn()
+      .mockResolvedValue({ handle: 't', accepted: true, bytesWritten: 1 })
+    const isAgent = vi.fn().mockResolvedValue(true)
+    const runtime = makeRuntime({
+      resolveLiveLeafForHandle: vi.fn().mockReturnValue({ ptyId: 'pty-1' }),
+      getDriver: vi.fn().mockReturnValue({ kind: 'idle' }),
+      isTerminalRunningSettledPromptAgent: isAgent,
+      sendTerminal,
+      sendTerminalAgentPrompt
+    })
+    const dispatcher = new RpcDispatcher({ runtime, methods: TERMINAL_METHODS })
+    const params = {
+      terminal: 't',
+      text: 'run the tests',
+      enter: true,
+      agentPrompt: true,
+      sender: '[Message from site › api (container id c1)]',
+      client: { id: 'orca-cli', type: 'desktop' }
+    }
+
+    await dispatcher.dispatch(makeRequest(params))
+    expect(sendTerminalAgentPrompt).toHaveBeenCalledWith(
+      't',
+      '[Message from site › api (container id c1)]\nrun the tests',
+      expect.anything()
+    )
+
+    isAgent.mockResolvedValue(false)
+    await dispatcher.dispatch(makeRequest(params))
+    expect(sendTerminal).toHaveBeenCalledWith(
+      't',
+      expect.objectContaining({ text: 'run the tests' }),
+      expect.anything()
+    )
+  })
+
   it('preserves direct input when the CLI target is not a proven settlement agent', async () => {
     const sendTerminal = vi.fn().mockResolvedValue({
       handle: 'terminal-1',

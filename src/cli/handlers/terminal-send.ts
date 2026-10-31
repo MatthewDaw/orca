@@ -7,10 +7,12 @@ import { readRetryRequestFlag } from '../retry-request-flag'
 import { RuntimeClientError } from '../runtime-client'
 import { attachUnverifiedTerminalPromptRecovery } from '../runtime/terminal-prompt-mutation-recovery'
 import { getTerminalHandle } from '../selectors'
+import { callerMessageHeader } from './agent-message-sender'
 
 type TerminalSendResult = { send: RuntimeTerminalSend; warnings?: string[] }
 
-export const terminalSendHandler: CommandHandler = async ({ flags, client, cwd, json }) => {
+export const terminalSendHandler: CommandHandler = async (ctx) => {
+  const { flags, client, cwd, json } = ctx
   const text = getOptionalStringFlag(flags, 'text')
   const enter = flags.get('enter') === true
   const interrupt = flags.get('interrupt') === true
@@ -54,6 +56,9 @@ export const terminalSendHandler: CommandHandler = async ({ flags, client, cwd, 
       'This Orca host does not support --wait-submit. No input was sent; update Orca on the execution host, or omit only --wait-submit for a legacy prompt whose delivery cannot be observed or retried safely.'
     )
   }
+  // Why: Orca labels what an agent sends another agent itself; the host adds the header only when
+  // the target is a Claude or Codex session, so commands sent to a shell are left as typed.
+  const sender = promptCandidate ? await callerMessageHeader(ctx) : null
   const params = {
     terminal: await getTerminalHandle(flags, cwd, client),
     text,
@@ -62,6 +67,7 @@ export const terminalSendHandler: CommandHandler = async ({ flags, client, cwd, 
     ...(promptCandidate
       ? {
           agentPrompt: true as const,
+          ...(sender ? { sender } : {}),
           ...(waitSubmitMs ? { waitSubmitMs } : {})
         }
       : {}),

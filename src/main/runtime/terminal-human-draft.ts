@@ -10,7 +10,7 @@ export const TYPING_PAUSE_MS = 4_000
 const MAX_DEFER_MS = 10 * 60_000
 const POLL_MS = 100
 
-type DraftState = { chars: number; lastInputAt: number; submitted: boolean }
+type DraftState = { chars: number; lines: number; lastInputAt: number; submitted: boolean }
 
 const drafts = new Map<string, DraftState>()
 
@@ -48,18 +48,21 @@ function stripEscapeSequences(data: string): string {
 }
 
 export function recordHumanTerminalInput(ptyId: string, data: string, now = Date.now()): void {
-  const state = drafts.get(ptyId) ?? { chars: 0, lastInputAt: now, submitted: true }
+  const state = drafts.get(ptyId) ?? { chars: 0, lines: 1, lastInputAt: now, submitted: true }
   let chars = state.chars
+  let lines = state.lines
   let submitted = state.submitted
   let touched = false
   for (const char of stripEscapeSequences(decodeKittyKeys(data))) {
     touched = true
-    if (char === '\r' || char === '\x03' || char === '\x15') {
+    if (char === '\r' || char === CTRL_C || char === '\x15') {
       chars = 0
+      lines = 1
       submitted = true
     } else if (char === '\n') {
       // Why: a newline inside a multi-line draft (Shift+Enter, Ctrl+J) is still part of it.
       chars += 1
+      lines += 1
       submitted = false
     } else if (char === '\x7f' || char === '\b') {
       chars = Math.max(0, chars - 1)
@@ -70,8 +73,34 @@ export function recordHumanTerminalInput(ptyId: string, data: string, now = Date
     }
   }
   if (touched) {
-    drafts.set(ptyId, { chars, lastInputAt: now, submitted })
+    drafts.set(ptyId, { chars, lines, lastInputAt: now, submitted })
   }
+}
+
+const CTRL_C = '\x03'
+const KITTY_CTRL_C = `${ESC}[99;5u`
+const MAX_CLEARED_LINES = 50
+
+// What to write in place of a Ctrl+C the person pressed to clear their half-written message: it
+// must empty the input box and nothing else, because the same key interrupts a running task or
+// subagent. Null when the key should go through untouched (nothing typed, or not a lone Ctrl+C).
+// Each line is cleared with end-of-line then kill-to-line-start, and Backspace joins it to the one
+// above; a surplus Backspace on an empty box does nothing.
+export function ctrlCClearsDraftInstead(
+  ptyId: string,
+  data: string,
+  now = Date.now()
+): string | null {
+  const state = drafts.get(ptyId)
+  if ((data !== CTRL_C && data !== KITTY_CTRL_C) || !state) {
+    return null
+  }
+  if (state.chars === 0 || state.submitted || now - state.lastInputAt >= DRAFT_ABANDONED_AFTER_MS) {
+    return null
+  }
+  return Array.from({ length: Math.min(state.lines, MAX_CLEARED_LINES) }, () => '\x05\x15').join(
+    '\x7f'
+  )
 }
 
 export function isUserComposing(ptyId: string, now = Date.now()): boolean {

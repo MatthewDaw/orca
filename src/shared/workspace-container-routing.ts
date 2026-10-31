@@ -1,3 +1,4 @@
+import { agentMessageHeader } from './agent-message-marker'
 import type { WorkspaceContainer, WorkspaceContainerCatalog } from './workspace-container-types'
 
 const PATH_SEPARATOR = ' › '
@@ -258,15 +259,27 @@ export function pickTargetTerminal<T extends TerminalLike>(
 
 export const MAX_CONTAINER_EXCHANGES = 8
 
+export function describeMessageSender(
+  catalog: WorkspaceContainerCatalog,
+  sender: WorkspaceContainer | null
+): string {
+  return sender
+    ? `${describeContainerPath(catalog, sender)} (container id ${sender.id})`
+    : 'a user or an agent outside any container'
+}
+
+// The line that tells a recipient how to answer a message that did not come with an exchange count.
+export function replyHint(sender: WorkspaceContainer | null): string {
+  return sender ? `To reply: orca container message --to "${sender.id}" --text "<your reply>"` : ''
+}
+
 export function formatContainerMessage(
   catalog: WorkspaceContainerCatalog,
   sender: WorkspaceContainer | null,
   text: string,
   exchange = 1
 ): string {
-  const from = sender
-    ? `${describeContainerPath(catalog, sender)} (container id ${sender.id})`
-    : 'a user or an agent outside any container'
+  const from = describeMessageSender(catalog, sender)
   const lastTurn = exchange >= MAX_CONTAINER_EXCHANGES
   const reply = !sender
     ? ''
@@ -274,7 +287,7 @@ export function formatContainerMessage(
       ? 'This is the last automatic exchange between you two: do not reply to the container. Summarize where things stand for the user instead.'
       : `To reply: orca container message --to "${sender.id}" --exchange ${exchange + 1} --text "<your reply>"`
   return [
-    `[Message from ${from} — exchange ${exchange}/${MAX_CONTAINER_EXCHANGES}]`,
+    agentMessageHeader(from, `exchange ${exchange}/${MAX_CONTAINER_EXCHANGES}`),
     text.trim(),
     reply
   ]

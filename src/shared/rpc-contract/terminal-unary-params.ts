@@ -156,6 +156,9 @@ export const TerminalSend = TerminalHandle.extend({
     })
     .optional(),
   requireAgentStatus: z.enum(['sendable']).optional(),
+  // Why: Orca, not the sending agent, labels agent-to-agent messages; the host prepends this header
+  // when the target is an agent session. Older hosts strip it and send the text as typed.
+  sender: z.string().max(4000).optional(),
   // Why: an agent-to-agent message must not land inside a person's unsent draft; older hosts ignore this.
   deferWhileUserTyping: z.literal(true).optional(),
   // Why: terminal-generated replies are valid input but must not transfer the shared terminal floor.

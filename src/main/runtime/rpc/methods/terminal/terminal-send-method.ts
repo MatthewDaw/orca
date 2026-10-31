@@ -1,5 +1,6 @@
 import { assertLegacyAiVaultResumeCommandAllowed } from '../../../../ai-vault/structured-session-ownership'
 import { InvalidArgumentError, defineMethod } from '../../core'
+import { withAgentMessageHeader } from '../../../../../shared/agent-message-marker'
 import { isUntypedTerminalInput } from '../../../../../shared/terminal-untyped-input'
 import { assertTerminalAgentSendable } from '../../terminal-agent-send-guard'
 import { TerminalSend } from '../../../../../shared/rpc-contract/terminal-unary-params'
@@ -213,22 +214,26 @@ export const TERMINAL_SEND_METHODS = [
       let acceptedPromptCheckpoint: unknown
       try {
         result = useSettledAgentPrompt
-          ? await runtime.sendTerminalAgentPrompt(params.terminal, params.text!, {
-              inputKind: 'driving',
-              beforeWrite,
-              signal,
-              ...(orchestrationMutation
-                ? {
-                    acceptQueued: true,
-                    observationTimeoutMs: params.waitSubmitMs ?? 0,
-                    requestId: orchestrationMutation.requestId,
-                    onInputAccepted: (send) => {
-                      acceptedPromptCheckpoint = { send }
-                      recordMutationReceipt?.(acceptedPromptCheckpoint)
+          ? await runtime.sendTerminalAgentPrompt(
+              params.terminal,
+              params.sender ? withAgentMessageHeader(params.sender, params.text!) : params.text!,
+              {
+                inputKind: 'driving',
+                beforeWrite,
+                signal,
+                ...(orchestrationMutation
+                  ? {
+                      acceptQueued: true,
+                      observationTimeoutMs: params.waitSubmitMs ?? 0,
+                      requestId: orchestrationMutation.requestId,
+                      onInputAccepted: (send) => {
+                        acceptedPromptCheckpoint = { send }
+                        recordMutationReceipt?.(acceptedPromptCheckpoint)
+                      }
                     }
-                  }
-                : {})
-            })
+                  : {})
+              }
+            )
           : await runtime.sendTerminal(
               params.terminal,
               {

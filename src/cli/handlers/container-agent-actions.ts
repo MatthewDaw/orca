@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
+import { withAgentMessageHeader } from '../../shared/agent-message-marker'
 import type { WorkspaceContainerCatalog } from '../../shared/workspace-container-types'
 import {
   CONTAINER_LAUNCH_PERMISSIONS,
@@ -17,6 +18,7 @@ import type { RuntimeTerminalListResult } from '../../shared/runtime-terminal-co
 import type { HandlerContext } from '../dispatch'
 import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
 import { RuntimeClientError } from '../runtime-client'
+import { callerMessageHeader } from './agent-message-sender'
 import { containerDirectory, readCatalog } from './container-catalog-file'
 import { createContainerOnNewWorktree } from './container-new-worktree'
 import {
@@ -191,7 +193,7 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
       ? { worktreeId: target.worktreeId }
       : { containerId: target.id }),
     agent,
-    prompt: getOptionalStringFlag(ctx.flags, 'prompt') ?? '',
+    prompt: await labelledPrompt(ctx, getOptionalStringFlag(ctx.flags, 'prompt') ?? ''),
     permission,
     requesterTabId: process.env.ORCA_TAB_ID,
     requesterId,
@@ -200,6 +202,12 @@ export async function launchContainerAgent(ctx: HandlerContext): Promise<void> {
   console.log(
     `Requested a new ${agent} session in ${describeContainerPath(catalog, target)}. Once it is up, reach it with \`orca container message --to "${isWorktreeSpaceId(target.id) ? target.id : describeContainerPath(catalog, target)}"\`.`
   )
+}
+
+// Why: Orca, not the launching agent, labels the first message of a session an agent starts.
+async function labelledPrompt(ctx: HandlerContext, prompt: string): Promise<string> {
+  const header = prompt.trim() ? await callerMessageHeader(ctx, 'session start') : null
+  return header ? withAgentMessageHeader(header, prompt) : prompt
 }
 
 async function terminalsInContainer(

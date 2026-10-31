@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DRAFT_ABANDONED_AFTER_MS,
   TYPING_PAUSE_MS,
+  ctrlCClearsDraftInstead,
   forgetTerminalDraft,
   isUserComposing,
   recordHumanTerminalInput
@@ -57,5 +58,44 @@ describe('terminal human draft', () => {
     expect(isUserComposing(id, 1000 + TYPING_PAUSE_MS + 1)).toBe(true)
     recordHumanTerminalInput(id, 'there\x1b[13u', 1100)
     expect(isUserComposing(id, 1200)).toBe(false)
+  })
+
+  describe('Ctrl+C with text in the box', () => {
+    it('becomes keys that only clear the box', () => {
+      forgetTerminalDraft(id)
+      recordHumanTerminalInput(id, 'half a thought', 1000)
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1100)).toBe('\x05\x15')
+      expect(ctrlCClearsDraftInstead(id, '\x1b[99;5u', 1100)).toBe('\x05\x15')
+    })
+
+    it('clears every line of a multi-line draft', () => {
+      forgetTerminalDraft(id)
+      recordHumanTerminalInput(id, 'one\ntwo\nthree', 1000)
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1100)).toBe('\x05\x15\x7f\x05\x15\x7f\x05\x15')
+    })
+
+    it('passes through when nothing is typed, after sending, and for other keys', () => {
+      forgetTerminalDraft(id)
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1000)).toBeNull()
+      recordHumanTerminalInput(id, 'hello', 1000)
+      expect(ctrlCClearsDraftInstead(id, 'x', 1100)).toBeNull()
+      expect(ctrlCClearsDraftInstead(id, '\x03\x03', 1100)).toBeNull()
+      recordHumanTerminalInput(id, '\r', 1200)
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1300)).toBeNull()
+    })
+
+    it('lets a second Ctrl+C interrupt once the first emptied the box', () => {
+      forgetTerminalDraft(id)
+      recordHumanTerminalInput(id, 'oops', 1000)
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1100)).not.toBeNull()
+      recordHumanTerminalInput(id, '\x03', 1100)
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1500)).toBeNull()
+    })
+
+    it('does not trust a draft left untouched for a long time', () => {
+      forgetTerminalDraft(id)
+      recordHumanTerminalInput(id, 'old', 1000)
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1000 + DRAFT_ABANDONED_AFTER_MS + 1)).toBeNull()
+    })
   })
 })

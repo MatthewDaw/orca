@@ -214,6 +214,13 @@ export abstract class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntim
     }
   }
 
+  // Whether a Claude or Codex session runs in this pty, as far as Orca has already seen.
+  isAgentPty(ptyId: string): boolean {
+    const pty = this.ptysById.get(ptyId)
+    const agent = pty?.foregroundAgent ?? pty?.launchAgent
+    return agent === 'claude' || agent === 'codex'
+  }
+
   private ptyIdForDraftCheck(handle: string): string | null {
     try {
       return (
