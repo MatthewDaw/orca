@@ -22,6 +22,7 @@ import {
 } from './terminal-delivery-watchdog'
 import { recordTerminalFreezeBreadcrumb } from './terminal-freeze-breadcrumbs'
 import { installTerminalFreezeReport } from './terminal-freeze-report'
+import { classifyUnorchestratedPtyExit } from './pty-mass-exit-recovery'
 import {
   bufferPtyShutdownData,
   bufferPtyShutdownReplayData,
@@ -202,7 +203,12 @@ function attachPtySecondaryPushListeners(unsubscribes: (() => void)[]): void {
       }
       deliverPtyExitToHandlers({
         ptyId: payload.id,
-        code: payload.code,
+        code: classifyUnorchestratedPtyExit({
+          ptyId: payload.id,
+          code: payload.code,
+          orchestrated:
+            payload.replacedByRestart === true || payload.preserveRendererBinding === true
+        }),
         // Why forwarded: pty ids are reused, so a buffered exit needs the lifetime it describes to
         // tell "this pane's shell died" from "the id's previous owner died" (#16970).
         ...(payload.incarnationId ? { incarnationId: payload.incarnationId } : {}),

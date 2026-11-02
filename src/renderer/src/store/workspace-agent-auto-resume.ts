@@ -14,6 +14,8 @@ const READY_POLL_MS = 1000
 const READY_TIMEOUT_MS = 90_000
 const CONTINUE_MESSAGE =
   'Orca was restarted while you were in the middle of a task. Pick up exactly where you left off and keep going.'
+const INTERRUPTED_CONTINUE_MESSAGE =
+  'Your session was killed from outside while you were in the middle of a task. Pick up exactly where you left off and keep going.'
 
 type ResumePlanItem = { worktreeId: string; tabId: string; continueWork: boolean }
 
@@ -37,7 +39,7 @@ export function planAgentAutoResume(
 }
 
 // The resumed agent only accepts a prompt once its TUI is up and its hooks report it at rest.
-async function continueWhenReady(tabId: string): Promise<void> {
+async function continueWhenReady(tabId: string, message: string): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS))
@@ -47,7 +49,7 @@ async function continueWhenReady(tabId: string): Promise<void> {
       paneKey.startsWith(`${tabId}:`)
     )?.[1]
     if (ptyId && row && row.state !== 'working') {
-      if (await sendRuntimePtyInputVerified(ptyId, CONTINUE_MESSAGE, 'driving')) {
+      if (await sendRuntimePtyInputVerified(ptyId, message, 'driving')) {
         setTimeout(() => void sendRuntimePtyInputVerified(ptyId, '\r', 'driving'), 250)
       }
       return
@@ -74,11 +76,7 @@ export function planRemainingTabs(
   })
 }
 
-async function resumeAll(): Promise<void> {
-  // Why first: a resume reads its permission flags from the record, so they must be attached before any wake.
-  await restoreSleepingAgentPermissions()
-  const records = Object.values(useAppStore.getState().sleepingAgentSessionsByPaneKey)
-  const plan = planAgentAutoResume(records)
+async function wakePlannedTabs(plan: readonly ResumePlanItem[], message: string): Promise<void> {
   for (const { worktreeId, tabId, continueWork } of plan) {
     const stillThere = useAppStore
       .getState()
@@ -88,10 +86,40 @@ async function resumeAll(): Promise<void> {
     }
     requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds: [tabId] })
     if (continueWork) {
-      void continueWhenReady(tabId)
+      void continueWhenReady(tabId, message)
     }
     await new Promise((resolve) => setTimeout(resolve, WAKE_SPACING_MS))
   }
+}
+
+// Why: a sweep like `pkill -u $USER` kills every session while Orca stays up; the tabs are kept,
+// and this brings their agents back the way a restart would.
+export async function resumeInterruptedTabs(tabIds: ReadonlySet<string>): Promise<void> {
+  await restoreSleepingAgentPermissions()
+  const state = useAppStore.getState()
+  const records = Object.values(state.sleepingAgentSessionsByPaneKey)
+  const plan = planAgentAutoResume(records).filter((item) => tabIds.has(item.tabId))
+  await wakePlannedTabs(plan, INTERRUPTED_CONTINUE_MESSAGE)
+  const remaining = planRemainingTabs(
+    state.tabsByWorktree,
+    records,
+    new Set(plan.map((item) => item.tabId))
+  )
+  for (const { worktreeId, tabIds: worktreeTabIds } of remaining) {
+    const mine = worktreeTabIds.filter((id) => tabIds.has(id))
+    if (mine.length > 0) {
+      requestBackgroundTerminalWorktreeMount({ worktreeId, tabIds: mine })
+      await new Promise((resolve) => setTimeout(resolve, WAKE_SPACING_MS))
+    }
+  }
+}
+
+async function resumeAll(): Promise<void> {
+  // Why first: a resume reads its permission flags from the record, so they must be attached before any wake.
+  await restoreSleepingAgentPermissions()
+  const records = Object.values(useAppStore.getState().sleepingAgentSessionsByPaneKey)
+  const plan = planAgentAutoResume(records)
+  await wakePlannedTabs(plan, CONTINUE_MESSAGE)
   const remaining = planRemainingTabs(
     useAppStore.getState().tabsByWorktree,
     records,

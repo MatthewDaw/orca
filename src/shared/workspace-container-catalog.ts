@@ -300,7 +300,7 @@ export function renderContainerContextPage(
   }
   lines.push('', '## Messaging other containers', '')
   lines.push(
-    'Message another container\'s agent with `orca container message --to "<container>" --text "<message>"`.',
+    'Message another container\'s agent with `orca container message --to "<container>" --text "<message>"`, not your own agent tool\'s session messaging (such as Claude Code\'s SendMessage): it reaches every agent type, waits while the person is typing, and keeps the exchange count.',
     'Use the path below (e.g. `AI Analysis/pickleball`) or the id; paths follow renames, so re-read this page if a name stops resolving.',
     'It goes to the first agent in that container; add `--agent <codex|claude|...>` to pick another. The recipient is told how to reply to you.',
     '',
