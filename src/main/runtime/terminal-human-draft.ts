@@ -10,7 +10,13 @@ export const TYPING_PAUSE_MS = 4_000
 const MAX_DEFER_MS = 10 * 60_000
 const POLL_MS = 100
 
-type DraftState = { chars: number; lines: number; lastInputAt: number; submitted: boolean }
+type DraftState = {
+  chars: number
+  lines: number
+  lastInputAt: number
+  submitted: boolean
+  inPaste: boolean
+}
 
 const drafts = new Map<string, DraftState>()
 
@@ -47,33 +53,49 @@ function stripEscapeSequences(data: string): string {
   return out
 }
 
+const PASTE_MARKER = new RegExp(`${ESC}\\[20([01])~`)
+
 export function recordHumanTerminalInput(ptyId: string, data: string, now = Date.now()): void {
-  const state = drafts.get(ptyId) ?? { chars: 0, lines: 1, lastInputAt: now, submitted: true }
-  let chars = state.chars
-  let lines = state.lines
-  let submitted = state.submitted
+  const state = drafts.get(ptyId) ?? {
+    chars: 0,
+    lines: 1,
+    lastInputAt: now,
+    submitted: true,
+    inPaste: false
+  }
+  let { chars, lines, submitted, inPaste } = state
   let touched = false
-  for (const char of stripEscapeSequences(decodeKittyKeys(data))) {
-    touched = true
-    if (char === '\r' || char === CTRL_C || char === '\x15') {
-      chars = 0
-      lines = 1
-      submitted = true
-    } else if (char === '\n') {
-      // Why: a newline inside a multi-line draft (Shift+Enter, Ctrl+J) is still part of it.
-      chars += 1
-      lines += 1
-      submitted = false
-    } else if (char === '\x7f' || char === '\b') {
-      chars = Math.max(0, chars - 1)
-      submitted = false
-    } else if (char >= ' ') {
-      chars += 1
-      submitted = false
+  // Odd indexes of the split are the paste-marker digits (1 = start, 0 = end).
+  const parts = data.split(new RegExp(PASTE_MARKER.source, 'g'))
+  for (let index = 0; index < parts.length; index += 1) {
+    if (index % 2 === 1) {
+      inPaste = parts[index] === '1'
+      continue
+    }
+    // Why: inside a paste Enter is a line break of the draft, never a send, and CRLF is one break.
+    const text = inPaste ? parts[index]!.replace(/\r\n?/g, '\n') : parts[index]!
+    for (const char of stripEscapeSequences(decodeKittyKeys(text))) {
+      touched = true
+      if (char === '\r' || char === CTRL_C || char === '\x15') {
+        chars = 0
+        lines = 1
+        submitted = true
+      } else if (char === '\n') {
+        // Why: a newline inside a multi-line draft (Shift+Enter, Ctrl+J) is still part of it.
+        chars += 1
+        lines += 1
+        submitted = false
+      } else if (char === '\x7f' || char === '\b') {
+        chars = Math.max(0, chars - 1)
+        submitted = false
+      } else if (char >= ' ') {
+        chars += 1
+        submitted = false
+      }
     }
   }
-  if (touched) {
-    drafts.set(ptyId, { chars, lines, lastInputAt: now, submitted })
+  if (touched || inPaste !== state.inPaste) {
+    drafts.set(ptyId, { chars, lines, lastInputAt: now, submitted, inPaste })
   }
 }
 
@@ -98,9 +120,9 @@ export function ctrlCClearsDraftInstead(
   if (state.chars === 0 || state.submitted || now - state.lastInputAt >= DRAFT_ABANDONED_AFTER_MS) {
     return null
   }
-  return Array.from({ length: Math.min(state.lines, MAX_CLEARED_LINES) }, () => '\x05\x15').join(
-    '\x7f'
-  )
+  // Why the full budget: the tracked line count misses edits it cannot follow (history recall,
+  // cursor moves), and a surplus Backspace on an empty box is a no-op, so over-clearing is safe.
+  return Array.from({ length: MAX_CLEARED_LINES }, () => '\x05\x15').join('\x7f')
 }
 
 export function isUserComposing(ptyId: string, now = Date.now()): boolean {

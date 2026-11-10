@@ -3,6 +3,16 @@ import { RuntimeClientError, RuntimeRpcFailureError } from './types'
 
 const INSPECT_STEP = 'Inspect the terminal output and agent state without sending input.'
 
+// Why: only `terminal send` takes --retry-request/--wait-submit; `container message` and other
+// wrappers reach terminal.send too, and telling them to pass flags they lack strands the agent.
+function commandAcceptsRetryRequest(originalCommand: string[] | undefined): boolean {
+  if (!originalCommand) {
+    return true
+  }
+  const terminalIndex = originalCommand.indexOf('terminal')
+  return terminalIndex !== -1 && originalCommand[terminalIndex + 1] === 'send'
+}
+
 export function attachDurableMutationRecovery(
   error: unknown,
   requestId: string | undefined,
@@ -12,7 +22,9 @@ export function attachDurableMutationRecovery(
   if (method !== 'terminal.send' || !requestId || !(error instanceof RuntimeClientError)) {
     return attachMutationRecovery(error, requestId, originalCommand)
   }
-  const message = `${error.message} Terminal prompt request ID: ${requestId}. Re-issue the exact command with --retry-request ${requestId} --wait-submit <seconds>; do not retry it without that ID.`
+  const message = commandAcceptsRetryRequest(originalCommand)
+    ? `${error.message} Terminal prompt request ID: ${requestId}. Re-issue the exact command with --retry-request ${requestId} --wait-submit <seconds>; do not retry it without that ID.`
+    : `${error.message} Terminal prompt request ID: ${requestId}. ${INSPECT_STEP} Resend the same command once the target is idle; this command has no --retry-request flag.`
   const data = {
     ...(error.data && typeof error.data === 'object' ? error.data : {}),
     orchestrationRequestId: requestId,

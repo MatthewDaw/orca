@@ -5,8 +5,10 @@ export type RuntimeTerminalSend = {
   accepted: boolean
   bytesWritten: number
   refusedReason?: 'no-agent' | 'permission'
-  /** Held back because a person has an unsent draft there; it is typed in once they finish. */
+  /** Held back; it is typed in once the reason clears. */
   queued?: true
+  /** `typing`: a person has an unsent draft there. `permission`: the agent is waiting on a permission prompt. */
+  queuedReason?: 'typing' | 'permission'
   prompt?: RuntimeTerminalPromptDelivery
   writeSettlement?: WriteSettlement
 }

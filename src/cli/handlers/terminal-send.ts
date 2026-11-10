@@ -8,6 +8,11 @@ import { RuntimeClientError } from '../runtime-client'
 import { attachUnverifiedTerminalPromptRecovery } from '../runtime/terminal-prompt-mutation-recovery'
 import { getTerminalHandle } from '../selectors'
 import { callerMessageHeader } from './agent-message-sender'
+import {
+  DEFAULT_PROMPT_OBSERVE_MS,
+  promptTurnStarted,
+  readTargetAgentStatus
+} from './agent-prompt-delivery-check'
 
 type TerminalSendResult = { send: RuntimeTerminalSend; warnings?: string[] }
 
@@ -28,7 +33,7 @@ export const terminalSendHandler: CommandHandler = async (ctx) => {
   if (waitSubmitSeconds && waitSubmitSeconds > 3600) {
     throw new RuntimeClientError('invalid_argument', '--wait-submit must be at most 3600 seconds.')
   }
-  const waitSubmitMs = waitSubmitSeconds ? waitSubmitSeconds * 1000 : undefined
+  const requestedWaitSubmitMs = waitSubmitSeconds ? waitSubmitSeconds * 1000 : undefined
   let promptDeliverySupported = false
   let promptDeliveryRuntimeId: string | null = null
   if (promptCandidate) {
@@ -50,7 +55,7 @@ export const terminalSendHandler: CommandHandler = async (ctx) => {
       'This Orca host cannot honor --retry-request and never recorded this request ID. This attempt sent no input, but an earlier prompt may have been delivered; inspect the terminal and do not resend unless you independently prove it was not delivered, because updating the host cannot make this specific retry idempotent.'
     )
   }
-  if (waitSubmitMs && !promptDeliverySupported) {
+  if (requestedWaitSubmitMs && !promptDeliverySupported) {
     throw new RuntimeClientError(
       'incompatible_runtime',
       'This Orca host does not support --wait-submit. No input was sent; update Orca on the execution host, or omit only --wait-submit for a legacy prompt whose delivery cannot be observed or retried safely.'
@@ -59,6 +64,9 @@ export const terminalSendHandler: CommandHandler = async (ctx) => {
   // Why: Orca labels what an agent sends another agent itself; the host adds the header only when
   // the target is a Claude or Codex session, so commands sent to a shell are left as typed.
   const sender = promptCandidate ? await callerMessageHeader(ctx) : null
+  const waitSubmitMs =
+    requestedWaitSubmitMs ??
+    (promptCandidate && promptDeliverySupported ? DEFAULT_PROMPT_OBSERVE_MS : undefined)
   const params = {
     terminal: await getTerminalHandle(flags, cwd, client),
     text,
@@ -106,7 +114,12 @@ export const terminalSendHandler: CommandHandler = async (ctx) => {
       baselineWorkingSequence: 0
     }
   }
-  const warnings = terminalSendWarnings(result.result.send)
+  const send = result.result.send
+  const targetStatus =
+    send.accepted && send.prompt && !promptTurnStarted(send)
+      ? await readTargetAgentStatus(client, send.handle)
+      : null
+  const warnings = terminalSendWarnings(send, { targetStatus })
   printResult(
     warnings.length > 0 ? { ...result, result: { ...result.result, warnings } } : result,
     json,

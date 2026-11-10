@@ -262,7 +262,7 @@ export abstract class OrcaRuntimeWithSerializeAgentPromptSubmission extends Orca
     })
   }
 
-  protected getAgentPromptActivity(
+  getAgentPromptActivity(
     handle: string,
     ptyId: string,
     waitTextCache?: AgentPromptWaitTextCache

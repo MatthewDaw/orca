@@ -365,10 +365,52 @@ describe('terminal send CLI', () => {
         enter: true,
         interrupt: false,
         agentPrompt: true,
+        waitSubmitMs: 8_000,
         client: { id: 'orca-cli', type: 'desktop' }
       },
-      { terminalPromptPreflight: { runtimeId: 'runtime-current' } }
+      { terminalPromptPreflight: { runtimeId: 'runtime-current' }, timeoutMs: 18_000 }
     )
+  })
+
+  it('tells the sender not to resend when the target agent is mid-turn', async () => {
+    const call = vi.fn().mockImplementation(async (method: string) =>
+      method === 'terminal.list'
+        ? { result: { terminals: [{ handle: 'term-1', agentStatus: 'working' }] } }
+        : {
+            result: {
+              send: {
+                handle: 'term-1',
+                accepted: true,
+                bytesWritten: 7,
+                prompt: {
+                  requestId: '33333333-3333-4333-8333-333333333333',
+                  stages: ['input_accepted'],
+                  provider: 'claude',
+                  observation: 'supported',
+                  processIncarnation: 'inc-1',
+                  generation: 1,
+                  baselineWorkingSequence: 0
+                }
+              }
+            }
+          }
+    )
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await TERMINAL_HANDLERS['terminal send']({
+      flags: new Map<string, string | true>([
+        ['terminal', 'term-1'],
+        ['text', 'next round'],
+        ['enter', true]
+      ]),
+      client: promptClient(call, true),
+      cwd: '/tmp/worktree',
+      json: false
+    })
+
+    const printed = log.mock.calls.flat().join('\n')
+    expect(printed).toContain('mid-turn')
+    expect(printed).not.toContain('swallowed')
   })
 
   it('carries the swallowed-Enter warning into the --json receipt', async () => {
@@ -711,15 +753,18 @@ describe('terminal send CLI', () => {
       json: true
     })
 
-    expect(call).toHaveBeenCalledTimes(2)
-    expect(call.mock.calls.map((args) => args[2])).toEqual([
+    // The receipt shows no turn start, so the CLI also reads the target's status once.
+    const sends = call.mock.calls.filter((args) => args[0] === 'terminal.send')
+    expect(sends.map((args) => args[2])).toEqual([
       {
         terminalPromptPreflight: { runtimeId: 'runtime-current' },
-        orchestrationRequestId: '22222222-2222-4222-8222-222222222222'
+        orchestrationRequestId: '22222222-2222-4222-8222-222222222222',
+        timeoutMs: 18_000
       },
       {
         terminalPromptPreflight: { runtimeId: 'runtime-current' },
-        orchestrationRequestId: '22222222-2222-4222-8222-222222222222'
+        orchestrationRequestId: '22222222-2222-4222-8222-222222222222',
+        timeoutMs: 18_000
       }
     ])
   })

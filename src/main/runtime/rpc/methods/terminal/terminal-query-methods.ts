@@ -1,4 +1,5 @@
 import { defineMethod } from '../../core'
+import type { OrcaRuntimeService } from '../../../orca-runtime'
 import { ORCA_LAYOUT_OWNER_IS_MAIN } from '../../../../../shared/layout-owner-switch'
 import { remoteFileContentBudget } from '../files-remote-content-budget'
 import { remoteRpcResultExceedsContentBudget } from '../../../../../shared/remote-rpc-content-budget'
@@ -26,11 +27,19 @@ export const TERMINAL_QUERY_METHODS = [
       if (ORCA_LAYOUT_OWNER_IS_MAIN && params.placeUnshownLiveTerminals && params.worktree) {
         await runtime.placeUnshownLiveTerminalsOf(params.worktree)
       }
-      return runtime.listTerminals(params.worktree, params.limit, {
+      const listed = await runtime.listTerminals(params.worktree, params.limit, {
         handles: params.handles,
         requireFreshPtyLiveness: params.requireFreshPtyLiveness,
         includeVisualLayouts: params.includeVisualLayouts
       })
+      // Why: coordinators otherwise guess idle/busy from screen footers; the hook state is exact.
+      return {
+        ...listed,
+        terminals: listed.terminals.map((terminal) => {
+          const agentStatus = readAgentStatus(runtime, terminal)
+          return agentStatus ? { ...terminal, agentStatus } : terminal
+        })
+      }
     }
   }),
   defineMethod({
@@ -175,3 +184,18 @@ export const TERMINAL_QUERY_METHODS = [
     }
   })
 ]
+
+function readAgentStatus(
+  runtime: OrcaRuntimeService,
+  terminal: { handle: string; ptyId: string | null; agentIdentity?: string }
+): 'working' | 'permission' | 'idle' | null {
+  if (!terminal.agentIdentity || !terminal.ptyId) {
+    return null
+  }
+  try {
+    return runtime.getAgentPromptActivity(terminal.handle, terminal.ptyId).status
+  } catch {
+    // A handle that went stale mid-listing simply reports no status.
+    return null
+  }
+}

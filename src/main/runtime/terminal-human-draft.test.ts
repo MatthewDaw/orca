@@ -8,6 +8,8 @@ import {
   recordHumanTerminalInput
 } from './terminal-human-draft'
 
+const FULL_CLEAR = Array.from({ length: 50 }, () => '\x05\x15').join('\x7f')
+
 describe('terminal human draft', () => {
   const id = 'pty-1'
 
@@ -64,14 +66,21 @@ describe('terminal human draft', () => {
     it('becomes keys that only clear the box', () => {
       forgetTerminalDraft(id)
       recordHumanTerminalInput(id, 'half a thought', 1000)
-      expect(ctrlCClearsDraftInstead(id, '\x03', 1100)).toBe('\x05\x15')
-      expect(ctrlCClearsDraftInstead(id, '\x1b[99;5u', 1100)).toBe('\x05\x15')
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1100)).toBe(FULL_CLEAR)
+      expect(ctrlCClearsDraftInstead(id, '\x1b[99;5u', 1100)).toBe(FULL_CLEAR)
     })
 
     it('clears every line of a multi-line draft', () => {
       forgetTerminalDraft(id)
       recordHumanTerminalInput(id, 'one\ntwo\nthree', 1000)
-      expect(ctrlCClearsDraftInstead(id, '\x03', 1100)).toBe('\x05\x15\x7f\x05\x15\x7f\x05\x15')
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1100)).toBe(FULL_CLEAR)
+    })
+
+    it('keeps a pasted multi-line draft, even with carriage returns, clearable', () => {
+      forgetTerminalDraft(id)
+      recordHumanTerminalInput(id, '\x1b[200~one\r\ntwo\rthree', 1000)
+      recordHumanTerminalInput(id, '\x1b[201~', 1010)
+      expect(ctrlCClearsDraftInstead(id, '\x03', 1100)).toBe(FULL_CLEAR)
     })
 
     it('passes through when nothing is typed, after sending, and for other keys', () => {

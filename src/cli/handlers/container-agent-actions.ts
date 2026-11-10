@@ -240,7 +240,8 @@ export async function listContainerAgents(ctx: HandlerContext): Promise<void> {
   console.log(describeContainerPath(catalog, target))
   for (const t of terminals) {
     const mine = t.tabId === process.env.ORCA_TAB_ID ? ' (you)' : ''
-    console.log(`  ${t.handle}\t${t.agentIdentity ?? 'terminal'}\t${t.title ?? ''}${mine}`)
+    const status = t.agentStatus ? `\t${t.agentStatus}` : ''
+    console.log(`  ${t.handle}\t${t.agentIdentity ?? 'terminal'}${status}\t${t.title ?? ''}${mine}`)
   }
   if (terminals.length === 0) {
     console.log('  No open terminals.')

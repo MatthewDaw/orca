@@ -32,6 +32,9 @@ export const CONTAINER_COMMAND_SPECS: CommandSpec[] = [
       "The message goes to the target container's default conversation (marked in its tab strip), or its first agent terminal when it has no default open. --agent picks another conversation: give the agent name (codex, claude, ...) or words from the tab title of the conversation, and the best title match wins. Only pass --agent when you have a clear reason to reach a conversation other than the default. Run `orca container agents --container <path>` to see the titles.",
       'If the container has no conversation open, its default conversation is resumed with your message, or a new Claude session is started with it when it never had one.',
       "The recipient sees who sent it and the command to reply. The sender is this terminal's container (ORCA_CONTAINER_ID); pass --from <container> outside a container terminal.",
+      'The reply says how far the message got: "Delivered … started working on it" (acknowledged), "mid-turn and will read the message when that turn ends" (waiting in its input), "Queued" (held by Orca), or "has not started on it yet" (check that terminal before resending). --json carries the same as `delivery`.',
+      "To see whether agents are idle or busy, run `orca container agents --container <path>`; each conversation shows working, idle or permission from the agent's own status hooks.",
+      'A reply of "Queued" means Orca is holding the message because a person is typing there or the agent is waiting on a permission prompt; it is typed in automatically once that clears. Do not resend a queued message and do not add retry flags; this command has none.',
       'Replies carry --exchange <n>; copy it from the message you are answering. After 8 automatic exchanges the command refuses, so two agents cannot loop forever: stop and summarize for the user.',
       'An ambiguous name lists the matching containers; retry with the full path or the id.'
     ],

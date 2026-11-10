@@ -1,10 +1,8 @@
 import type * as AgentSessionResume from './agent-session-resume'
 import type { StartupCommandDelivery } from './codex-startup-delivery'
 import type { ExecutionHostId } from './execution-host'
-import type { PtyIncarnationId } from './pty-incarnation'
 import type { PtyLivenessVerdict } from './pty-liveness-verdict'
 import type { RuntimeListingHostScope } from './runtime-listing-host-scope'
-import type { RuntimeMobileSessionTabsResult } from './runtime-session-contracts'
 import type { StartupCwdFallback } from './startup-cwd-fallback'
 import type { TabGroupLayoutNode } from './tab-types'
 import type { TerminalExitCause } from './terminal-exit-cause'
@@ -41,6 +39,8 @@ export type RuntimeTerminalSummary = {
   preview: string
   /** Host-resolved observed agent identity; absent when unknown. Does not imply launch support. */
   agentIdentity?: TerminalAgent
+  /** The agent's hook-reported state; absent when unknown or the host predates the field. */
+  agentStatus?: 'working' | 'permission' | 'idle'
   /** Absent while running or when the host predates the field; never infer a clean finish. */
   exitCause?: TerminalExitCause
   /** Absent when the host predates the field or could not name the execution host. */
@@ -113,48 +113,14 @@ export type RuntimeTerminalListResult = {
   hostScope?: RuntimeTerminalListHostScope
 }
 
-export type RuntimeTerminalOrphanAdoptionClaim = {
-  terminal: string
-  ptyId: string
-  incarnationId: PtyIncarnationId
-  tabId: string
-  leafId: string
-}
-
-export type RuntimeTerminalOrphanTopologyTab = {
-  tabId: string
-  root: TerminalPaneLayoutNode
-  activeLeafId: string
-  expandedLeafId: string | null
-}
-
-export type RuntimeTerminalOrphanTopologyGroup = {
-  id: string
-  activeTabId: string
-  tabOrder: string[]
-  recentTabIds?: string[]
-}
-
-export type RuntimeTerminalOrphanTopology = {
-  tabs: RuntimeTerminalOrphanTopologyTab[]
-  groups: RuntimeTerminalOrphanTopologyGroup[]
-  groupLayout?: TabGroupLayoutNode
-}
-
-export type RuntimeTerminalOrphanAdoptionRequest = {
-  worktree: string
-  expectedTopologyRevision: number
-  claims: RuntimeTerminalOrphanAdoptionClaim[]
-  activeTabId?: string
-  activeGroupId?: string
-  topology?: RuntimeTerminalOrphanTopology
-}
-
-export type RuntimeTerminalOrphanAdoptionResult = {
-  adopted: boolean
-  topologyRevision: number
-  snapshot: RuntimeMobileSessionTabsResult
-}
+export type {
+  RuntimeTerminalOrphanAdoptionClaim,
+  RuntimeTerminalOrphanAdoptionRequest,
+  RuntimeTerminalOrphanAdoptionResult,
+  RuntimeTerminalOrphanTopology,
+  RuntimeTerminalOrphanTopologyGroup,
+  RuntimeTerminalOrphanTopologyTab
+} from './runtime-terminal-orphan-adoption-contracts'
 
 export type RuntimeWorktreeTerminalSleepResult = {
   stopped: number

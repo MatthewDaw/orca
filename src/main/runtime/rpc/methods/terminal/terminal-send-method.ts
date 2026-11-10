@@ -13,6 +13,8 @@ import {
   getTerminalSendGuardRefusedReason,
   isTerminalInputLockedForClient,
   isTerminalSendGuardNotWritable,
+  notAccepted,
+  queueSendWhileAgentAwaitsPermission,
   resolveMobileFloorClientId,
   type MobileInputFloorClaimHolder
 } from './terminal-input-delivery'
@@ -77,22 +79,10 @@ export const TERMINAL_SEND_METHODS = [
         leaf?.ptyId &&
         !runtime.isMobileTerminalQueryReplyAuthority(leaf.ptyId, queryReplyClientId!)
       ) {
-        return {
-          send: {
-            handle: params.terminal,
-            accepted: false,
-            bytesWritten: 0
-          }
-        }
+        return notAccepted(params.terminal)
       }
       if (leaf?.ptyId && isTerminalInputLockedForClient(runtime, leaf.ptyId, params.client)) {
-        return {
-          send: {
-            handle: params.terminal,
-            accepted: false,
-            bytesWritten: 0
-          }
-        }
+        return notAccepted(params.terminal)
       }
       if (
         leaf?.ptyId &&
@@ -120,26 +110,14 @@ export const TERMINAL_SEND_METHODS = [
         )
         // Why: a stream-less request can't safely create ownership, so never write at stale geometry.
         if (!claim.updated || isTerminalInputLockedForClient(runtime, leaf.ptyId, params.client)) {
-          return {
-            send: {
-              handle: params.terminal,
-              accepted: false,
-              bytesWritten: 0
-            }
-          }
+          return notAccepted(params.terminal)
         }
       }
       const hasText = typeof params.text === 'string' && params.text.length > 0
       const hasSuffix = params.enter === true || params.interrupt === true
       if (params.requireAgentStatus === 'sendable' && hasText && hasSuffix) {
         // Why: guarded sends are two-phase; reject combined payload + submit so a guard flip can't cause partial delivery.
-        return {
-          send: {
-            handle: params.terminal,
-            accepted: false,
-            bytesWritten: 0
-          }
-        }
+        return notAccepted(params.terminal)
       }
       // Why: recheck permission/no-agent state immediately before accepting the PTY write.
       const assertSendPreconditions =
@@ -162,13 +140,7 @@ export const TERMINAL_SEND_METHODS = [
           await assertSendPreconditions?.(leaf?.ptyId ?? undefined)
         } catch (error) {
           if (isTerminalSendGuardNotWritable(error)) {
-            return {
-              send: {
-                handle: params.terminal,
-                accepted: false,
-                bytesWritten: 0
-              }
-            }
+            return notAccepted(params.terminal)
           }
           const refusedReason = getTerminalSendGuardRefusedReason(error)
           if (!refusedReason) {
@@ -258,6 +230,11 @@ export const TERMINAL_SEND_METHODS = [
         if (acceptedPromptCheckpoint) {
           return acceptedPromptCheckpoint
         }
+        const heldForPermission = queueSendWhileAgentAwaitsPermission(runtime, params, error)
+        if (heldForPermission) {
+          recordMutationReceipt?.(heldForPermission)
+          return heldForPermission
+        }
         const refusedReason = getTerminalSendGuardRefusedReason(error)
         if (refusedReason) {
           return {
@@ -270,13 +247,7 @@ export const TERMINAL_SEND_METHODS = [
           }
         }
         if (isTerminalSendGuardNotWritable(error)) {
-          return {
-            send: {
-              handle: params.terminal,
-              accepted: false,
-              bytesWritten: 0
-            }
-          }
+          return notAccepted(params.terminal)
         }
         throw error
       }

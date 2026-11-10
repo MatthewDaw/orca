@@ -1,4 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { DEFAULT_PROMPT_OBSERVE_MS } from './agent-prompt-delivery-check'
+import { reportContainerMessageDelivery } from './container-message-delivery'
+import type { RuntimeTerminalSend } from '../../shared/runtime-types'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import {
@@ -12,6 +15,7 @@ import {
   describeContainerPath,
   formatContainerMessage,
   MAX_CONTAINER_EXCHANGES,
+  matchWorktreeTerminalsByHint,
   rankTargetTerminals,
   resolveContainerRef
 } from '../../shared/workspace-container-routing'
@@ -34,17 +38,24 @@ import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
 import { RuntimeClientError } from '../runtime-client'
 
 async function listContainers(ctx: HandlerContext): Promise<void> {
-  const { containers } = await readCatalog()
+  const catalog = await readCatalog()
+  const { containers } = catalog
+  // Why: a terminal outside every container still sits in its worktree's own space, which is a
+  // valid place to launch and message from, so the list must not read as "nothing here".
+  const ownSpace = await callerWorktreeSpace(ctx, catalog).catch(() => null)
   if (ctx.json) {
-    console.log(JSON.stringify({ containers }, null, 2))
-    return
-  }
-  if (containers.length === 0) {
-    console.log('No containers.')
+    console.log(JSON.stringify({ containers, ownSpace }, null, 2))
     return
   }
   for (const container of containers) {
     console.log(`${describeContainerPath({ version: 1, containers }, container)}\t${container.id}`)
+  }
+  if (ownSpace && !containers.some((c) => c.id === process.env.ORCA_CONTAINER_ID)) {
+    console.log(
+      `${ownSpace.name} (this terminal's own space, not inside a container)\t${ownSpace.id}`
+    )
+  } else if (containers.length === 0) {
+    console.log('No containers.')
   }
 }
 
@@ -52,22 +63,42 @@ async function printContext(ctx: HandlerContext): Promise<void> {
   const name = getOptionalStringFlag(ctx.flags, 'name')
   let pagePath = name ? undefined : process.env.ORCA_CONTAINER_CONTEXT
   if (name) {
-    const wanted = name.toLowerCase()
-    const matches = (await readCatalog()).containers.filter((c) => c.name.toLowerCase() === wanted)
-    if (matches.length > 1) {
+    const catalog = await readCatalog()
+    const resolved = resolveContainerRef(catalog, name)
+    if (!resolved.container && resolved.candidates.length > 1) {
       throw new RuntimeClientError(
         'invalid_argument',
-        `More than one container is named "${name}". Rename one so the name is unique.`
+        `"${name}" matches several containers: ${resolved.candidates.map((c) => describeContainerPath(catalog, c)).join(', ')}. Add the parent's name, or run \`orca container list\`.`
       )
     }
-    pagePath = matches[0] && join(containerDirectory(), 'pages', `${matches[0].id}.md`)
+    pagePath = resolved.container
+      ? join(containerDirectory(), 'pages', `${resolved.container.id}.md`)
+      : undefined
+  }
+  if (!pagePath && !name) {
+    const catalog = await readCatalog()
+    const space = await callerWorktreeSpace(ctx, catalog).catch(() => null)
+    if (space) {
+      const here = catalog.containers.filter((c) => c.worktreeId === space.worktreeId)
+      console.log(
+        [
+          `This terminal is in the worktree space "${space.name}": it sits on the worktree itself, in no container, and that is a valid place to work from.`,
+          here.length > 0
+            ? `Containers on this worktree: ${here.map((c) => describeContainerPath(catalog, c)).join(', ')}.`
+            : 'No containers exist on this worktree yet.',
+          'Start a session here with `orca container launch --agent <claude|codex> --prompt "<task>"` (no --container needed).',
+          'Message other containers with `orca container message --to "<name>" --text "<message>"`; `orca container list` shows them all.'
+        ].join('\n')
+      )
+      return
+    }
   }
   if (!pagePath) {
     throw new RuntimeClientError(
       'selector_not_found',
       name
-        ? `No container named "${name}".`
-        : 'This terminal is not in a container. Pass --name <container>.'
+        ? `No container matches "${name}". Run \`orca container list\` to see them all.`
+        : 'This terminal is not in a container or worktree. Pass --name <container>.'
     )
   }
   const page = await readFile(pagePath, 'utf8').catch(() => {
@@ -122,8 +153,28 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
     target.container,
     getOptionalStringFlag(ctx.flags, 'agent')
   )
-  const terminal = ranked[0] ?? null
-  const others = ranked.slice(1)
+  const agentHint = getOptionalStringFlag(ctx.flags, 'agent')
+  const inContainerMatch =
+    !agentHint || ranked.some((t) => matchWorktreeTerminalsByHint([t], agentHint).length > 0)
+  // Why: with a hint that matches nothing in the container, search the worktree before falling
+  // back to the default conversation, which is how a worker's message used to reach the wrong agent.
+  const worktreeMatches =
+    agentHint && !inContainerMatch
+      ? matchWorktreeTerminalsByHint(
+          listed.result.terminals.filter((t) => t.agentIdentity),
+          agentHint
+        )
+      : []
+  if (agentHint && !inContainerMatch && worktreeMatches.length === 0 && ranked.length > 0) {
+    throw new RuntimeClientError(
+      'selector_not_found',
+      `No conversation in ${describeContainerPath(catalog, target.container)} or its worktree matches --agent "${agentHint}". Open conversations:\n${ranked
+        .map((t) => `  - ${t.title ?? t.handle}${t.agentIdentity ? ` (${t.agentIdentity})` : ''}`)
+        .join('\n')}\nResend with words from one of those titles, or omit --agent for the default.`
+    )
+  }
+  const terminal = worktreeMatches[0] ?? ranked[0] ?? null
+  const others = worktreeMatches.length > 0 ? worktreeMatches.slice(1) : ranked.slice(1)
   const targetPath = describeContainerPath(catalog, target.container)
   const text = formatContainerMessage(
     catalog,
@@ -160,7 +211,7 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
       `"${targetPath}" has no open terminal to receive the message. Open an agent in that container first.`
     )
   }
-  const sent = await ctx.client.call<{ send: { accepted: boolean; queued?: true } }>(
+  const sent = await ctx.client.call<{ send: RuntimeTerminalSend }>(
     'terminal.send',
     {
       terminal: terminal.handle,
@@ -170,28 +221,17 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
       // Why: an agent TUI reads text plus Enter in one write as a paste and keeps the Enter as a
       // newline; the agent-prompt path pastes, then submits, so the message goes out at once.
       agentPrompt: true,
-      // Why: never type into a person's half-written message; it waits until they send or clear it.
+      // Why: never type into a person's half-written message or over a permission prompt; Orca
+      // holds the message and types it in once that clears, so the sender never needs to retry.
       deferWhileUserTyping: true,
+      // Why: watching for the recipient's turn start turns the send into an acknowledgement.
+      waitSubmitMs: DEFAULT_PROMPT_OBSERVE_MS,
       client: { id: 'orca-cli', type: 'desktop' }
-    }
+    },
+    { timeoutMs: DEFAULT_PROMPT_OBSERVE_MS + 10_000 }
   )
-  if (ctx.json) {
-    console.log(
-      JSON.stringify({
-        to: targetPath,
-        terminal: terminal.handle,
-        accepted: sent.result.send.accepted,
-        queued: sent.result.send.queued === true,
-        otherConversations: others.map((t) => ({ handle: t.handle, title: t.title }))
-      })
-    )
-  } else {
-    console.log(
-      sent.result.send.queued
-        ? `Queued for ${targetPath}: a person is mid-message there, so it will be typed in once they send or clear it.`
-        : `Sent to ${targetPath} (${terminal.agentIdentity ?? 'terminal'} ${terminal.handle}).`
-    )
-  }
+  const send = sent.result.send
+  await reportContainerMessageDelivery(ctx, { send, terminal, targetPath, others })
   if (others.length > 0 && !ctx.json) {
     // Why: with several conversations the sender should know which one it reached and how to pick another.
     console.log(
@@ -200,7 +240,7 @@ async function sendContainerMessage(ctx: HandlerContext): Promise<void> {
         .join('\n')}`
     )
   }
-  if (!sent.result.send.accepted) {
+  if (!send.accepted) {
     process.exitCode = 1
   }
 }

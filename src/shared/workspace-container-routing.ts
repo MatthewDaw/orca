@@ -1,4 +1,5 @@
 import { agentMessageHeader } from './agent-message-marker'
+import { wordNamesPathWord, withoutFillerWords } from './container-name-similarity'
 import type { WorkspaceContainer, WorkspaceContainerCatalog } from './workspace-container-types'
 
 const PATH_SEPARATOR = ' › '
@@ -147,11 +148,19 @@ export function resolveContainerRef(
     })
   })
   // 3. Otherwise every word of the reference appears somewhere in the path ("basketball computer vision").
-  const words = normalize(ref.replace(/[/›>]/g, ' ')).split(' ')
-  const wordMatches = paths.filter(({ segments }) => {
+  const words = withoutFillerWords(normalize(ref.replace(/[/›>]/g, ' ')).split(' '))
+  const exactWordMatches = paths.filter(({ segments }) => {
     const haystack = segments.join(' ')
     return words.every((word) => haystack.includes(word))
   })
+  // 3b. Still nothing: allow a typo per word ("computer vision tennis" finds comptuer_vision › tennis).
+  const wordMatches =
+    exactWordMatches.length > 0
+      ? exactWordMatches
+      : paths.filter(({ segments }) => {
+          const pathWords = segments.join(' ').split(' ')
+          return words.every((word) => wordNamesPathWord(word, pathWords))
+        })
   const matches =
     suffixMatches.length > 0
       ? suffixMatches
@@ -213,10 +222,34 @@ type TerminalLike = {
   agentIdentity?: string
 }
 
-const wordsOf = (value: string): string[] =>
-  normalize(value)
-    .split(' ')
-    .filter((word) => word.length > 1)
+const wordsOf = (value: string): string[] => normalize(value).split(' ').filter(Boolean)
+
+// Why whole tokens for single letters: "Lane D" must tell lanes apart, but a bare "d" as a
+// substring would match every title.
+const hintScore = (t: TerminalLike, wanted: string[]): number => {
+  const haystack = normalize([t.agentIdentity, t.title, t.paneTitle].filter(Boolean).join(' '))
+  const tokens = new Set(haystack.split(' '))
+  return wanted.filter((word) => (word.length > 1 ? haystack.includes(word) : tokens.has(word)))
+    .length
+}
+
+// Terminals anywhere in the worktree whose title matches the hint, best first. Why: workers
+// started by an agent often sit outside every container's tab list, so a container-scoped hint
+// can never reach them and the message would silently land on the default conversation.
+export function matchWorktreeTerminalsByHint<T extends TerminalLike>(
+  terminals: readonly T[],
+  hint: string
+): T[] {
+  const wanted = wordsOf(hint)
+  if (wanted.length === 0) {
+    return []
+  }
+  return terminals
+    .map((terminal, index) => ({ terminal, index, score: hintScore(terminal, wanted) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.terminal)
+}
 
 // The container's agent terminals, best match first. A hint (an agent name such as "codex", or
 // words from a conversation's tab title) ranks terminals by how many of its words their title,
@@ -232,10 +265,7 @@ export function rankTargetTerminals<T extends TerminalLike>(
   const agents = inContainer.filter((t) => t.agentIdentity)
   const pool = agents.length > 0 ? agents : inContainer
   const wanted = hint ? wordsOf(hint) : []
-  const score = (t: T): number => {
-    const haystack = normalize([t.agentIdentity, t.title, t.paneTitle].filter(Boolean).join(' '))
-    return wanted.filter((word) => haystack.includes(word)).length
-  }
+  const score = (t: T): number => hintScore(t, wanted)
   // Why: the default conversation is where a container's work lives, so it wins unless the hint
   // matches another conversation better.
   const defaultTabId = container.defaultConversation?.tabId

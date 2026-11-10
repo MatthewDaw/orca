@@ -5,6 +5,7 @@ import {
   inheritedCodeScopes,
   isContainerWithin,
   pickTargetTerminal,
+  matchWorktreeTerminalsByHint,
   rankTargetTerminals,
   resolveContainerRef
 } from './workspace-container-routing'
@@ -60,6 +61,21 @@ describe('resolveContainerRef', () => {
   it('resolves by words across the path', () => {
     expect(idOf('basketball computer vision')).toBe('cv-bb')
     expect(idOf('ai analysis pickleball')).toBe('ws-pb')
+  })
+
+  it('forgives a misspelled path and the words around a name', () => {
+    const typo: WorkspaceContainerCatalog = {
+      version: 1,
+      containers: [
+        container('tn', 'tennis', 'comptuer_vision'),
+        container('vb', 'volleyball', 'comptuer_vision'),
+        container('ws-tn', 'tennis', 'website')
+      ]
+    }
+    expect(resolveContainerRef(typo, 'computer_vision tennis').container?.id).toBe('tn')
+    expect(
+      resolveContainerRef(typo, 'the computer vision volleyball container').container?.id
+    ).toBe('vb')
   })
 
   it('reports candidates when a bare name is ambiguous', () => {
@@ -236,5 +252,24 @@ describe('isContainerWithin', () => {
   it('excludes ancestors and unrelated containers', () => {
     expect(isContainerWithin(catalog, 'c', 'a')).toBe(false)
     expect(isContainerWithin(catalog, 'a', 'd')).toBe(false)
+  })
+})
+
+describe('matchWorktreeTerminalsByHint', () => {
+  const worktreeTerminals = [
+    { handle: 'ui', tabId: 'u', title: 'UI planner', agentIdentity: 'claude' },
+    { handle: 'a', tabId: 'x', title: 'Lane A worker', agentIdentity: 'codex' },
+    { handle: 'd', tabId: 'y', title: 'Lane D worker', agentIdentity: 'codex' }
+  ]
+
+  it('finds a worker that no container owns, best title match first', () => {
+    expect(matchWorktreeTerminalsByHint(worktreeTerminals, 'lane d').map((t) => t.handle)).toEqual([
+      'd',
+      'a'
+    ])
+  })
+
+  it('returns nothing when the hint matches no title', () => {
+    expect(matchWorktreeTerminalsByHint(worktreeTerminals, 'zzz')).toEqual([])
   })
 })

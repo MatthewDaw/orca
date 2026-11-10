@@ -29,7 +29,7 @@ export function formatTerminalList(
   const body = result.terminals
     .map(
       (terminal) =>
-        `${terminal.handle}  ${terminal.paneTitle ?? terminal.title ?? '(untitled)'}  ${terminal.connected ? 'connected' : 'disconnected'}  host=${terminal.executionHostId ?? 'unverifiable'}  ${terminal.worktreePath}\n${terminal.preview ? `preview: ${terminal.preview}` : 'preview: <empty>'}`
+        `${terminal.handle}  ${terminal.paneTitle ?? terminal.title ?? '(untitled)'}  ${terminal.connected ? 'connected' : 'disconnected'}${terminal.agentStatus ? `  agent=${terminal.agentStatus}` : ''}  host=${terminal.executionHostId ?? 'unverifiable'}  ${terminal.worktreePath}\n${terminal.preview ? `preview: ${terminal.preview}` : 'preview: <empty>'}`
     )
     .join('\n\n')
   const visualLayout = formatTerminalVisualLayouts(result.visualLayouts)
@@ -172,7 +172,10 @@ function formatTerminalReadLimitedWarning(terminal: RuntimeTerminalRead): string
   return 'warning: output limited'
 }
 
-export function formatTerminalSend(result: { send: RuntimeTerminalSend }): string {
+export function formatTerminalSend(result: {
+  send: RuntimeTerminalSend
+  warnings?: string[]
+}): string {
   if (!result.send.accepted) {
     const reason = result.send.refusedReason ? `: ${result.send.refusedReason}` : ''
     return `Input refused by ${result.send.handle}${reason}.`
@@ -185,19 +188,34 @@ export function formatTerminalSend(result: { send: RuntimeTerminalSend }): strin
     `Prompt ${prompt.requestId} on ${result.send.handle}: ${prompt.stages.join(' -> ')}.`,
     `provider: ${prompt.provider}`,
     `delivery observation: ${prompt.observation}`,
-    ...terminalSendWarnings(result.send).map((warning) => `warning: ${warning}`)
+    // Why prefer the handler's: only it knows the target's live status when no turn start was seen.
+    ...(result.warnings ?? terminalSendWarnings(result.send)).map(
+      (warning) => `warning: ${warning}`
+    )
   ].join('\n')
 }
 
 /** The same warnings the text formatter prints, so a --json caller sees them too. */
-export function terminalSendWarnings(send: RuntimeTerminalSend): string[] {
-  const warning = send.accepted && send.prompt ? promptObservationWarning(send.prompt) : null
+export function terminalSendWarnings(
+  send: RuntimeTerminalSend,
+  context: { targetStatus?: 'working' | 'permission' | 'idle' | null } = {}
+): string[] {
+  const warning =
+    send.accepted && send.prompt
+      ? promptObservationWarning(send.prompt, context.targetStatus)
+      : null
   return warning ? [warning] : []
 }
 
 function promptObservationWarning(
-  prompt: NonNullable<RuntimeTerminalSend['prompt']>
+  prompt: NonNullable<RuntimeTerminalSend['prompt']>,
+  targetStatus?: 'working' | 'permission' | 'idle' | null
 ): string | null {
+  // Why: a busy agent queues typed input and reads it when its turn ends, so no turn start is
+  // expected and resending would deliver the message twice.
+  if (targetStatus === 'working' && !prompt.stages.includes('turn_started')) {
+    return 'the target agent is mid-turn, so the message is waiting in its input and will be read when the current turn ends. Do not resend it.'
+  }
   if (prompt.observation === 'permission') {
     return `delivery was not observed because the provider requires permission. Resolve the permission prompt in the terminal, then reissue the exact command with --retry-request ${prompt.requestId} and --wait-submit <seconds>.`
   }

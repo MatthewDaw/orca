@@ -160,28 +160,88 @@ export function assertTerminalSendExactPtyBinding(
   throw new Error('terminal_guard_not_writable')
 }
 
+export function notAccepted(handle: string): { send: RuntimeTerminalSend } {
+  return { send: { handle, accepted: false, bytesWritten: 0 } }
+}
+
+type DeferrableSendParams = {
+  terminal: string
+  text?: string
+  enter?: unknown
+  interrupt?: unknown
+  agentPrompt?: true
+  deferWhileUserTyping?: true
+  inputKind?: string
+  client?: { id: string; type?: string }
+  waitSubmitMs?: number
+  requireWriteSettlement?: true
+  resolvedLaunchDraft?: unknown
+  requireAgentStatus?: string
+}
+
+// Same paste-then-submit path an immediate send takes, so a queued message is sent, not left in
+// the box; it also waits out any permission prompt the agent raises before it can be typed.
+async function sendQueuedMessage(
+  runtime: OrcaRuntimeService,
+  params: DeferrableSendParams
+): Promise<RuntimeTerminalSend> {
+  const { terminal, text } = params
+  if (
+    params.agentPrompt &&
+    text &&
+    params.enter === true &&
+    (await runtime.isTerminalRunningSettledPromptAgent(terminal))
+  ) {
+    return runtime.sendTerminalAgentPrompt(terminal, text, {
+      inputKind: 'driving',
+      onPermission: 'wait'
+    })
+  }
+  return runtime.sendTerminal(
+    terminal,
+    { text, enter: params.enter === true, interrupt: false },
+    { inputKind: 'driving' }
+  )
+}
+
+// Why: an agent-to-agent message must not fail because the target is mid-permission-prompt; it
+// is held until the person answers, then typed in. Returns the queued receipt, or null when the
+// error is not that block or the sender wants a synchronous refusal.
+export function queueSendWhileAgentAwaitsPermission(
+  runtime: OrcaRuntimeService,
+  params: DeferrableSendParams,
+  error: unknown
+): { send: RuntimeTerminalSend } | null {
+  const message = error instanceof Error ? error.message : String(error)
+  if (
+    message !== 'agent_prompt_blocked' ||
+    !params.deferWhileUserTyping ||
+    !params.agentPrompt ||
+    !params.text ||
+    params.enter !== true
+  ) {
+    return null
+  }
+  void sendQueuedMessage(runtime, params).catch(() => undefined)
+  return {
+    send: {
+      handle: params.terminal,
+      accepted: true,
+      bytesWritten: 0,
+      queued: true,
+      queuedReason: 'permission'
+    }
+  }
+}
+
 // A message that would land inside a person's unsent draft waits for them to submit or clear it,
 // then types itself in. Returns the immediate reply when it deferred, or null to send right away.
 export function deferSendWhileUserComposes(
   runtime: OrcaRuntimeService,
-  params: {
-    terminal: string
-    text?: string
-    enter?: unknown
-    interrupt?: unknown
-    agentPrompt?: true
-    deferWhileUserTyping?: true
-    inputKind?: string
-    client?: { id: string; type?: string }
-    waitSubmitMs?: number
-    requireWriteSettlement?: true
-    resolvedLaunchDraft?: unknown
-    requireAgentStatus?: string
-  },
+  params: DeferrableSendParams,
   ptyId: string | null | undefined
 ): { send: RuntimeTerminalSend } | null {
-  const { terminal, text } = params
-  const enter = params.enter === true
+  const { terminal } = params
   // Why: every programmatic sender waits for the person's draft, not only the ones that ask. A
   // person's own input (mobile), query replies, and callers that need a synchronous receipt go
   // straight on; agent prompts among those still wait inside the runtime before writing.
@@ -201,24 +261,17 @@ export function deferSendWhileUserComposes(
     return null
   }
   void waitUntilUserStopsComposing(ptyId)
-    .then(async () => {
-      // Why: same paste-then-submit path an immediate send takes, so a queued message is sent, not left in the box.
-      if (
-        params.agentPrompt &&
-        text &&
-        enter &&
-        (await runtime.isTerminalRunningSettledPromptAgent(terminal))
-      ) {
-        return runtime.sendTerminalAgentPrompt(terminal, text, { inputKind: 'driving' })
-      }
-      return runtime.sendTerminal(
-        terminal,
-        { text, enter, interrupt: false },
-        { inputKind: 'driving' }
-      )
-    })
+    .then(() => sendQueuedMessage(runtime, params))
     .catch(() => undefined)
-  return { send: { handle: terminal, accepted: true, bytesWritten: 0, queued: true } }
+  return {
+    send: {
+      handle: terminal,
+      accepted: true,
+      bytesWritten: 0,
+      queued: true,
+      queuedReason: 'typing'
+    }
+  }
 }
 
 export function isInvalidTerminalQueryReply(
