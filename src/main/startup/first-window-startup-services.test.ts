@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   FIRST_WINDOW_STARTUP_SERVICE_TIMEOUT_MS,
+  LOCAL_PTY_STARTUP_FAIL_OPEN_MAX_HOLDS,
   LOCAL_PTY_STARTUP_FAIL_OPEN_TIMEOUT_MS,
   startFirstWindowStartupServices
 } from './first-window-startup-services'
@@ -154,6 +155,73 @@ describe('startFirstWindowStartupServices', () => {
       await expect(started.localPtyProviderReady).resolves.toBeUndefined()
       expect(daemonSignal?.aborted).toBe(false)
       expect(onDaemonError).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not count a main-thread hang against the fail-open cap', async () => {
+    vi.useFakeTimers()
+    const onDaemonError = vi.fn()
+    let daemonSignal: AbortSignal | undefined
+    let resolveDaemon!: () => void
+
+    try {
+      const started = startFirstWindowStartupServices({
+        startDaemonPtyProvider: (signal) => {
+          daemonSignal = signal
+          return new Promise<void>((resolve) => {
+            resolveDaemon = resolve
+          })
+        },
+        startAgentHookServer: () => Promise.resolve(),
+        onDaemonError,
+        onAgentHookServerError: vi.fn()
+      })
+      await Promise.resolve()
+      // A hang: the clock jumps past the cap while no timer gets to run.
+      vi.setSystemTime(Date.now() + 80_000)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(daemonSignal?.aborted).toBe(false)
+      expect(onDaemonError).not.toHaveBeenCalled()
+
+      resolveDaemon()
+      await expect(started.localPtyReady).resolves.toBeUndefined()
+      expect(daemonSignal?.aborted).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('holds the fail-open while the daemon is healthy, up to the hold limit', async () => {
+    vi.useFakeTimers()
+    const onDaemonError = vi.fn()
+    const onFailOpenHeld = vi.fn()
+    const holdFailOpenWhile = vi.fn(async () => true)
+    let daemonSignal: AbortSignal | undefined
+
+    try {
+      const started = startFirstWindowStartupServices({
+        startDaemonPtyProvider: (signal) => {
+          daemonSignal = signal
+          return new Promise<void>(() => {})
+        },
+        startAgentHookServer: () => Promise.resolve(),
+        onDaemonError,
+        onAgentHookServerError: vi.fn(),
+        holdFailOpenWhile,
+        onFailOpenHeld
+      })
+      await Promise.resolve()
+      for (let hold = 1; hold <= LOCAL_PTY_STARTUP_FAIL_OPEN_MAX_HOLDS; hold++) {
+        await vi.advanceTimersByTimeAsync(LOCAL_PTY_STARTUP_FAIL_OPEN_TIMEOUT_MS)
+        expect(onFailOpenHeld).toHaveBeenLastCalledWith(hold)
+        expect(daemonSignal?.aborted).toBe(false)
+      }
+      await vi.advanceTimersByTimeAsync(LOCAL_PTY_STARTUP_FAIL_OPEN_TIMEOUT_MS)
+      await expect(started.localPtyReady).resolves.toBeUndefined()
+      expect(daemonSignal?.aborted).toBe(true)
+      expect(holdFailOpenWhile).toHaveBeenCalledTimes(LOCAL_PTY_STARTUP_FAIL_OPEN_MAX_HOLDS)
     } finally {
       vi.useRealTimers()
     }

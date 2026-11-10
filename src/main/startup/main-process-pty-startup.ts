@@ -6,6 +6,9 @@ import { track } from '../telemetry/client'
 import { getPtyIdForPaneKey } from '../ipc/pty/pane/key-state'
 import { getDaemonProvider, listLiveDaemonPtyIds } from '../daemon/daemon-provider-state'
 import { initDaemonPtyProvider } from '../daemon/daemon-provider-init'
+import { checkDaemonHealth } from '../daemon/daemon-health'
+import { getDaemonRuntimeDir } from '../daemon/daemon-launch-paths'
+import { getDaemonSocketPath, getDaemonTokenPath } from '../daemon/daemon-spawner'
 import { restartLocalTerminalsAfterElevation } from '../windows/windows-administrator-restart'
 import { resolveTerminalSpawnAdmissionMode } from '../daemon/terminal-spawn-gate'
 import {
@@ -29,7 +32,10 @@ import {
   resolveAgentWorkspaceExecutionHostId,
   retireRestoredStatusesWithDeadTerminals
 } from '../agent-hooks/restored-status-dead-terminal-sweep'
-import { startFirstWindowStartupServices } from './first-window-startup-services'
+import {
+  LOCAL_PTY_STARTUP_FAIL_OPEN_MAX_HOLDS,
+  startFirstWindowStartupServices
+} from './first-window-startup-services'
 import { logStartupMilestone } from './startup-diagnostics'
 import type { WindowsDesktopStartupServices } from './windows-desktop-shell-path-startup'
 import type { RuntimeWorktreeLifecycleEvent } from '../runtime/orca-runtime'
@@ -128,7 +134,9 @@ export function startTerminalRuntimeStartupServices(): WindowsDesktopStartupServ
   const startupServices = startFirstWindowStartupServices({
     // Why: both desktop and headless serve must adopt the same persistent provider before creating terminals or a renderer.
     startDaemonPtyProvider: async (signal) => {
-      logStartupMilestone('startup-service-start', { service: 'daemon-pty-provider' })
+      logStartupMilestone('startup-service-start', {
+        service: 'daemon-pty-provider'
+      })
       // Why: only GUI-spawned macOS daemons watch for login-session death; a headless
       // serve daemon must survive its spawning session ending (SSH disconnect).
       await initDaemonPtyProvider(signal, {
@@ -163,12 +171,16 @@ export function startTerminalRuntimeStartupServices(): WindowsDesktopStartupServ
       }
       // Why: retained shells can invoke Codex immediately after the startup gate.
       state.codexRuntimeHome?.reconcileLegacySharedHomeForRetainedPanes()
-      logStartupMilestone('startup-service-done', { service: 'daemon-pty-provider' })
+      logStartupMilestone('startup-service-done', {
+        service: 'daemon-pty-provider'
+      })
     },
     // Why: PTY spawn env reads ORCA_AGENT_HOOK_* from live server state, so the renderer awaits this before restored terminals reconnect.
     startAgentHookServer: async () => {
       const settings = state.store?.getSettings()
-      logStartupMilestone('startup-service-start', { service: 'agent-hook-server' })
+      logStartupMilestone('startup-service-start', {
+        service: 'agent-hook-server'
+      })
       // Why (#11217): the hook listener fails open on every request error, so an IDS resetting
       // loopback POSTs mid-body stops agent status for every runtime with no symptom but staleness.
       // Log + telemetry (the daemon_start_failed pattern) so it is diagnosable without a packet capture.
@@ -182,7 +194,25 @@ export function startTerminalRuntimeStartupServices(): WindowsDesktopStartupServ
         userDataPath: app.getPath('userData'),
         endpointNamespace: state.devAgentHookEndpointNamespace
       })
-      logStartupMilestone('startup-service-done', { service: 'agent-hook-server' })
+      logStartupMilestone('startup-service-done', {
+        service: 'agent-hook-server'
+      })
+    },
+    // Why: failing open while a healthy daemon still owns live agent sessions re-spawns each of
+    // them on the local provider as a duplicate, so a reachable daemon earns more time.
+    holdFailOpenWhile: async () => {
+      const runtimeDir = getDaemonRuntimeDir()
+      return (
+        (await checkDaemonHealth(
+          getDaemonSocketPath(runtimeDir),
+          getDaemonTokenPath(runtimeDir)
+        )) === 'healthy'
+      )
+    },
+    onFailOpenHeld: (holds) => {
+      console.warn(
+        `[daemon] Startup is slow but the terminal daemon is healthy; keeping terminals waiting for it (hold ${holds}/${LOCAL_PTY_STARTUP_FAIL_OPEN_MAX_HOLDS}) rather than spawning non-persistent local PTYs`
+      )
     },
     onDaemonError: (error) => {
       // Why: daemon failure silently falls back to non-persistent local PTYs; log + telemetry so a fleet-wide outage is observable (was invisible in v1.4.129-rc.1).

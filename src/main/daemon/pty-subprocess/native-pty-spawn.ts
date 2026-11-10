@@ -6,6 +6,7 @@ import {
 import type { WindowsShellSpawnAttempt } from '../../providers/windows-shell-fallback-chain'
 import { assignHostProcessToKillOnCloseJob } from '../../windows/windows-pty-job'
 import { wrapPtySpawnInTerminalScope } from '../terminal-scopes-runtime'
+import { applySpawnHelperRelocation } from '../../providers/macos-spawn-helper-relocation'
 
 async function loadNodePty(): Promise<typeof pty> {
   return import('node-pty')
@@ -44,6 +45,7 @@ export async function spawnNativeDaemonPty(args: {
     if (process.platform === 'win32') {
       assignHostProcessToKillOnCloseJob()
     }
+    applySpawnHelperRelocation()
     const proc = nodePty.spawn(wrapped.file, wrapped.args, {
       name: args.env.TERM ?? 'xterm-256color',
       cols: args.cols,

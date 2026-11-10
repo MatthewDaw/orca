@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { startDaemon, type DaemonHandle } from './daemon-main'
 import { createPtySubprocess } from './pty-subprocess'
+import { macosPtySpawnLogHooks } from './macos-pty-spawn-log-hooks'
 import { warmWindowsConptyOnce } from './windows-conpty-warmup'
 import { warmPwshAvailabilityCache } from '../pwsh'
 import { createDaemonFileLog, createNoopDaemonFileLog } from './daemon-file-log'
@@ -278,15 +279,7 @@ async function main(): Promise<void> {
         }
       : {}),
     spawnSubprocess: (opts) =>
-      createPtySubprocess({
-        ...opts,
-        ...(process.platform === 'darwin'
-          ? {
-              onMacosTccSpawnStrategy: (strategy) =>
-                daemonLog.log('macos-tcc-pty-spawn', { strategy })
-            }
-          : {})
-      }),
+      createPtySubprocess({ ...opts, ...macosPtySpawnLogHooks(daemonLog, opts.sessionId) }),
     onIdleShutdown: () => {
       deathWatch?.stop()
       shuttingDown = true

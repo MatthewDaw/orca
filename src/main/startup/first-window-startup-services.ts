@@ -1,8 +1,13 @@
+import { startResponsiveDeadline, type ResponsiveDeadline } from './responsive-deadline'
+
 type FirstWindowStartupServices = {
   startDaemonPtyProvider: (signal: AbortSignal) => Promise<void>
   startAgentHookServer: (signal: AbortSignal) => Promise<void>
   onDaemonError: (error: unknown) => void
   onAgentHookServerError: (error: unknown) => void
+  /** True keeps the PTY gate closed for another fail-open window: the daemon is alive and worth waiting for. */
+  holdFailOpenWhile?: () => Promise<boolean>
+  onFailOpenHeld?: (holds: number) => void
 }
 
 type StartupService = {
@@ -23,6 +28,9 @@ export const FIRST_WINDOW_STARTUP_SERVICE_TIMEOUT_MS = 12_000
 // waits for the daemon attempt itself and only fail-opens at a hard cap that
 // exists solely as a deadlock backstop.
 export const LOCAL_PTY_STARTUP_FAIL_OPEN_TIMEOUT_MS = 60_000
+// Why bounded: a daemon that answers health checks but never finishes adopting is the deadlock
+// the cap exists for; a few extra windows cover a slow start without waiting forever.
+export const LOCAL_PTY_STARTUP_FAIL_OPEN_MAX_HOLDS = 3
 
 function startService(
   label: string,
@@ -63,7 +71,9 @@ export function startFirstWindowStartupServices({
   startDaemonPtyProvider,
   startAgentHookServer,
   onDaemonError,
-  onAgentHookServerError
+  onAgentHookServerError,
+  holdFailOpenWhile,
+  onFailOpenHeld
 }: FirstWindowStartupServices): FirstWindowStartupServicesResult {
   // Why: daemon startup and hook-server binding are independent, but both gate
   // restored terminals; run them together so cold-start latency is max(), not sum().
@@ -76,21 +86,54 @@ export function startFirstWindowStartupServices({
   const hooks = startService('agent hook server', startAgentHookServer, onAgentHookServerError)
   const allServicesReady = Promise.all([daemon.ready, hooks.ready]).then(() => undefined)
   let windowTimeout: ReturnType<typeof setTimeout> | null = null
-  let failOpenTimeout: ReturnType<typeof setTimeout> | null = null
+  let failOpenDeadline: ResponsiveDeadline | null = null
+  let settled = false
   const servicesSettled = allServicesReady.finally(() => {
+    settled = true
     if (windowTimeout) {
       clearTimeout(windowTimeout)
     }
-    if (failOpenTimeout) {
-      clearTimeout(failOpenTimeout)
-    }
+    failOpenDeadline?.cancel()
   })
   const failOpenReady = new Promise<void>((resolve) => {
-    failOpenTimeout = setTimeout(() => {
+    let holds = 0
+    const failOpen = (): void => {
       daemon.reportTimeout()
       hooks.reportTimeout()
       resolve()
-    }, LOCAL_PTY_STARTUP_FAIL_OPEN_TIMEOUT_MS)
+    }
+    // Why a responsive deadline: an 80s main-thread hang at launch used to fire this cap the
+    // instant the thread recovered, aborting a daemon adoption that was one step from done and
+    // re-spawning every live agent session as a duplicate on the local provider.
+    const arm = (): void => {
+      failOpenDeadline = startResponsiveDeadline({
+        ms: LOCAL_PTY_STARTUP_FAIL_OPEN_TIMEOUT_MS,
+        onExpire: () => {
+          if (settled) {
+            return
+          }
+          if (!holdFailOpenWhile || holds >= LOCAL_PTY_STARTUP_FAIL_OPEN_MAX_HOLDS) {
+            failOpen()
+            return
+          }
+          void holdFailOpenWhile()
+            .catch(() => false)
+            .then((hold) => {
+              if (settled) {
+                return
+              }
+              if (!hold) {
+                failOpen()
+                return
+              }
+              holds += 1
+              onFailOpenHeld?.(holds)
+              arm()
+            })
+        }
+      })
+    }
+    arm()
   })
   const firstWindowReady = Promise.race([
     servicesSettled,

@@ -9,7 +9,8 @@ const { spawnMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('node:child_process', () => ({
-  spawn: spawnMock
+  spawn: spawnMock,
+  execFile: vi.fn()
 }))
 
 import {

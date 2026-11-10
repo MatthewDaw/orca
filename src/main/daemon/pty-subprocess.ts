@@ -35,6 +35,7 @@ export type PtySubprocessOptions = {
   /** Aborts in-progress cwd validation; `isCanceled` is only polled between steps. */
   cancelSignal?: AbortSignal
   onMacosTccSpawnStrategy?: (strategy: 'wrapped' | 'direct') => void
+  onSpawnHelperStalled?: () => void
 }
 
 export async function checkPtySpawnHealth(): Promise<void> {
@@ -104,6 +105,7 @@ export async function createPtySubprocess(opts: PtySubprocessOptions): Promise<S
     reportsChildExitStatus: spawned.reportsChildExitStatus,
     requestedCwd: opts.cwd,
     sessionId: opts.sessionId,
-    startupAgentRecognition: launch.startupAgentRecognition
+    startupAgentRecognition: launch.startupAgentRecognition,
+    onSpawnHelperStalled: opts.onSpawnHelperStalled
   })
 }

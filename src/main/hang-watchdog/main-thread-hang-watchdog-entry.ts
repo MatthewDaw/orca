@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process'
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import { createHangWatchdogDetectionLoop } from './hang-watchdog-detection-loop'
 import { writeHangDetectionMarker } from './hang-detection-marker'
@@ -33,6 +34,31 @@ export function recordHangObservation(options: {
   }
 }
 
+export function hangSamplePath(markerPath: string): string {
+  return `${markerPath}.sample.txt`
+}
+
+// Why: the marker records how long the main thread hung, never what it was doing. This worker is
+// alive during the hang, so it can ask macOS for the stuck thread's stack while it is still stuck.
+export function sampleHungMainThread(
+  options: { parentPid: number; markerPath: string },
+  run: typeof execFile = execFile
+): void {
+  if (process.platform !== 'darwin' || !options.markerPath) {
+    return
+  }
+  try {
+    run(
+      '/usr/bin/sample',
+      [String(options.parentPid), '3', '-mayDie', '-file', hangSamplePath(options.markerPath)],
+      { timeout: 30_000 },
+      () => {}
+    )
+  } catch {
+    // A missing sampler leaves the duration-only marker in place.
+  }
+}
+
 export function runWatchdog(
   config: HangWatchdogWorkerData,
   port: HangWatchdogPort | null = parentPort
@@ -44,13 +70,15 @@ export function runWatchdog(
     timeoutMs: config.timeoutMs,
     checkIntervalMs: config.checkIntervalMs,
     now: () => Date.now(),
-    onHangDetected: (unresponsiveMs) =>
+    onHangDetected: (unresponsiveMs) => {
       recordHangObservation({
         parentPid: config.parentPid,
         markerPath: config.markerPath,
         unresponsiveMs,
         selfRecovered: false
-      }),
+      })
+      sampleHungMainThread(config)
+    },
     // Update one marker per stall so resolution does not require reconciling a second record.
     onHangResolved: (unresponsiveMs) =>
       recordHangObservation({

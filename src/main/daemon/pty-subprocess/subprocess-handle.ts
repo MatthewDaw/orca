@@ -9,6 +9,7 @@ import { isValidPtySize } from '../daemon-pty-size'
 import type { SubprocessHandle } from '../session-subprocess-handle'
 import { createPtyForegroundProcessTracker } from './foreground-process-tracker'
 import { PtyPreListenerEvents } from './pre-listener-events'
+import { watchMacosSpawnHelperStall } from './macos-spawn-helper-stall-watchdog'
 import { ptyProcessNameIsSpawnFile } from './spawn-file-foreground-process'
 import { inspectSpawnFileWindowsChildProcesses } from './spawn-file-child-processes'
 
@@ -27,6 +28,7 @@ export function createDaemonPtySubprocessHandle(args: {
   requestedCwd?: string
   sessionId: string
   startupAgentRecognition: RecognizedAgentProcess | null
+  onSpawnHelperStalled?: () => void
 }): SubprocessHandle {
   const reportsChildExitStatus = args.reportsChildExitStatus
   const shellPath = args.shellPath
@@ -48,7 +50,9 @@ export function createDaemonPtySubprocessHandle(args: {
     isDead: () => dead
   })
 
+  let sawOutput = false
   proc.onData((data) => {
+    sawOutput = true
     foreground.recordOutput(data)
     events.acceptData(data)
   })
@@ -66,6 +70,17 @@ export function createDaemonPtySubprocessHandle(args: {
       hostReportsChildExitStatus: reportsChildExitStatus
     })
   })
+
+  const onSpawnHelperStalled = args.onSpawnHelperStalled
+  if (process.platform === 'darwin') {
+    watchMacosSpawnHelperStall({
+      pid: proc.pid,
+      hasOutput: () => sawOutput,
+      isDead: () => dead,
+      notify: (text) => events.acceptData(text),
+      onStalled: () => onSpawnHelperStalled?.()
+    })
+  }
 
   const slavePath = readPtySlavePath(proc)
   return {
