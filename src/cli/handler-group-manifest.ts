@@ -39,6 +39,11 @@ export const HANDLER_GROUPS: readonly HandlerGroup[] = [
     load: async () => (await import('./handlers/account.js')).ACCOUNT_HANDLERS
   },
   {
+    name: 'account-push',
+    keys: ['account push'],
+    load: async () => (await import('./handlers/account-push.js')).ACCOUNT_PUSH_HANDLERS
+  },
+  {
     name: 'artifacts',
     keys: [
       'artifacts list',

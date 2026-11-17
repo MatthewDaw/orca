@@ -30,6 +30,23 @@ export const ACCOUNT_COMMAND_SPECS: CommandSpec[] = [
     examples: ['orca account list']
   },
   {
+    path: ['account', 'push'],
+    summary: "Copy this machine's Claude/Codex login to a remote worker over ssh",
+    usage:
+      'orca account push --to <ssh-host> [--agent claude|codex|all] [--wsl-distro <name>] [--claude-token-file <file>] [--dry-run] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'to', 'agent', 'wsl-distro', 'claude-token-file', 'dry-run'],
+    notes: [
+      'Codex: copies ~/.codex/auth.json to ~/.codex/auth.json on the host (existing file kept as auth.json.orca-bak).',
+      'Claude: copies a live login (credentials file or macOS keychain) to ~/.claude/.credentials.json. If this machine has no live Claude login, run `claude setup-token` once, save the token, and pass --claude-token-file; it is stored at ~/.config/orca/claude-oauth-token and exported as CLAUDE_CODE_OAUTH_TOKEN from ~/.profile.',
+      'Secrets travel over ssh stdin into 0600 files and are never printed. Use --wsl-distro when the ssh host is Windows and the worker runs in WSL.',
+      'A copied login shares one refresh token between machines, so a refresh on one side can occasionally sign the other out; setup-token tokens do not have this problem.'
+    ],
+    examples: [
+      'orca account push --to winlaptop --wsl-distro Ubuntu',
+      'orca account push --to worker1 --agent codex --dry-run'
+    ]
+  },
+  {
     path: ['account', 'select'],
     summary: 'Select an OpenCode or Devin profile for new agent launches',
     usage: 'orca account select --agent opencode|devin --account <id|system> [--json]',
