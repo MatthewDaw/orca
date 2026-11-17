@@ -1,11 +1,11 @@
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { homedir, userInfo } from 'node:os'
 import { join } from 'node:path'
 import type { CommandHandler } from '../dispatch'
 import { RuntimeClientError } from '../runtime-client'
 import { getOptionalStringFlag, getRequiredStringFlag } from '../flags'
-import { readActiveClaudeKeychainCredentialsStrict } from '../../main/claude-accounts/keychain'
 
 type PushAgent = 'claude' | 'codex'
 type PushStatus = 'pushed' | 'would-push' | 'skipped' | 'failed'
@@ -52,6 +52,25 @@ export function parseLiveClaudeCredentials(raw: string, now: number): string | n
   return now - oauth.expiresAt > STALE_ACCESS_TOKEN_MS ? null : raw
 }
 
+// Why: the shipped CLI bundle carries no main-process code, so the keychain is read here directly.
+function readClaudeKeychain(configDir?: string): Promise<string | null> {
+  if (process.platform !== 'darwin') {
+    return Promise.resolve(null)
+  }
+  const suffix = configDir
+    ? `-${createHash('sha256').update(configDir.normalize('NFC')).digest('hex').slice(0, 8)}`
+    : ''
+  const user = process.env.USER || userInfo().username
+  return new Promise((resolve) => {
+    execFile(
+      'security',
+      ['find-generic-password', '-s', `Claude Code-credentials${suffix}`, '-a', user, '-w'],
+      { timeout: 10_000 },
+      (error, stdout) => resolve(error ? null : stdout.trim() || null)
+    )
+  })
+}
+
 async function readOptionalFile(path: string): Promise<string | null> {
   try {
     return await readFile(path, 'utf8')
@@ -83,11 +102,8 @@ export async function findClaudeSource(
   const configDir = env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
   const candidates: [string, () => Promise<string | null>][] = [
     ['credentials file', () => readOptionalFile(join(configDir, '.credentials.json'))],
-    [
-      'macOS keychain',
-      () => readActiveClaudeKeychainCredentialsStrict(configDir).catch(() => null)
-    ],
-    ['macOS keychain', () => readActiveClaudeKeychainCredentialsStrict().catch(() => null)]
+    ['macOS keychain', () => readClaudeKeychain(configDir)],
+    ['macOS keychain', () => readClaudeKeychain()]
   ]
   for (const [origin, read] of candidates) {
     const live = parseLiveClaudeCredentials((await read()) ?? '', now)
