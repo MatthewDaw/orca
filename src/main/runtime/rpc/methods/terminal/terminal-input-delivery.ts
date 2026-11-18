@@ -8,7 +8,7 @@ import {
   isTerminalInputTooLargeWithYield
 } from '../../../../../shared/terminal-input'
 import type { TerminalViewportClient } from './terminal-stream-types'
-import { isUserComposing, waitUntilUserStopsComposing } from '../../../terminal-human-draft'
+import { isComposerNonEmpty, waitUntilUserStopsComposing } from '../../../terminal-human-draft'
 
 export function isTerminalInputLockedForClient(
   runtime: OrcaRuntimeService,
@@ -236,11 +236,11 @@ export function queueSendWhileAgentAwaitsPermission(
 
 // A message that would land inside a person's unsent draft waits for them to submit or clear it,
 // then types itself in. Returns the immediate reply when it deferred, or null to send right away.
-export function deferSendWhileUserComposes(
+export async function deferSendWhileUserComposes(
   runtime: OrcaRuntimeService,
   params: DeferrableSendParams,
   ptyId: string | null | undefined
-): { send: RuntimeTerminalSend } | null {
+): Promise<{ send: RuntimeTerminalSend } | null> {
   const { terminal } = params
   // Why: every programmatic sender waits for the person's draft, not only the ones that ask. A
   // person's own input (mobile), query replies, and callers that need a synchronous receipt go
@@ -255,12 +255,15 @@ export function deferSendWhileUserComposes(
     params.client?.type === 'mobile' ||
     params.inputKind === 'query-reply' ||
     params.interrupt === true ||
-    !ptyId ||
-    !isUserComposing(ptyId)
+    !ptyId
   ) {
     return null
   }
-  void waitUntilUserStopsComposing(ptyId)
+  const readDraft = (id: string): Promise<string | null> => runtime.readComposerDraft(id)
+  if (!(await isComposerNonEmpty(ptyId, readDraft))) {
+    return null
+  }
+  void waitUntilUserStopsComposing(ptyId, undefined, readDraft)
     .then(() => sendQueuedMessage(runtime, params))
     .catch(() => undefined)
   return {

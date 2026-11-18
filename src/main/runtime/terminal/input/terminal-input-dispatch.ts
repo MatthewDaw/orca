@@ -263,9 +263,9 @@ export abstract class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntim
     // Why: a prompt from an agent or Orca must never land inside what the person is typing there;
     // it waits until they send or clear their draft. A launch prompt goes to a fresh terminal.
     if (options.inputKind !== 'launch') {
-      const typedPtyId = this.ptyIdForDraftCheck(handle)
-      if (typedPtyId) {
-        await waitUntilUserStopsComposing(typedPtyId, options.signal)
+      const ptyId = this.ptyIdForDraftCheck(handle)
+      if (ptyId) {
+        await waitUntilUserStopsComposing(ptyId, options.signal, (id) => this.readComposerDraft(id))
       }
     }
     const pty = this.getLivePtyForHandle(handle)

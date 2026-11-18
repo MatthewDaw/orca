@@ -4,8 +4,10 @@ import {
   TYPING_PAUSE_MS,
   ctrlCClearsDraftInstead,
   forgetTerminalDraft,
+  isComposerNonEmpty,
   isUserComposing,
-  recordHumanTerminalInput
+  recordHumanTerminalInput,
+  resolveCtrlCForDraft
 } from './terminal-human-draft'
 
 const FULL_CLEAR = Array.from({ length: 50 }, () => '\x05\x15').join('\x7f')
@@ -106,5 +108,55 @@ describe('terminal human draft', () => {
       recordHumanTerminalInput(id, 'old', 1000)
       expect(ctrlCClearsDraftInstead(id, '\x03', 1000 + DRAFT_ABANDONED_AFTER_MS + 1)).toBeNull()
     })
+  })
+
+  describe('the screen decides', () => {
+    const screen = (text: string | null) => async () => text
+
+    it('treats an empty box as clear however many keys the tally counted', async () => {
+      forgetTerminalDraft(id)
+      recordHumanTerminalInput(id, 'phantom text', Date.now())
+      expect(await isComposerNonEmpty(id, screen(''))).toBe(false)
+      expect(await isComposerNonEmpty(id, screen('  \n '))).toBe(false)
+    })
+
+    it('sees text the tally never counted', async () => {
+      forgetTerminalDraft(id)
+      expect(await isComposerNonEmpty(id, screen('typed elsewhere'))).toBe(true)
+    })
+
+    it('falls back to the tally only when no screen can be read', async () => {
+      forgetTerminalDraft(id)
+      recordHumanTerminalInput(id, 'abc', Date.now())
+      expect(await isComposerNonEmpty(id, screen(null))).toBe(true)
+      forgetTerminalDraft(id)
+      expect(await isComposerNonEmpty(id, screen(null))).toBe(false)
+    })
+
+    it('Ctrl+C on an empty box goes straight through even if the tally says text', async () => {
+      forgetTerminalDraft(id)
+      recordHumanTerminalInput(id, 'phantom', Date.now())
+      expect(await resolveCtrlCForDraft(id, '\x03', screen(''))).toBeNull()
+      expect(await resolveCtrlCForDraft(id, '\x03', screen(' '))).toBeNull()
+    })
+
+    it('Ctrl+C clears a box that has text even if the tally missed it', async () => {
+      forgetTerminalDraft(id)
+      expect(await resolveCtrlCForDraft(id, '\x03', screen('hello'))).toBe(FULL_CLEAR)
+    })
+
+    it('leaves other keys alone', async () => {
+      expect(await resolveCtrlCForDraft(id, 'a', screen('hello'))).toBeNull()
+    })
+  })
+
+  it('does not count terminal reply strings as typing', () => {
+    forgetTerminalDraft(id)
+    recordHumanTerminalInput(
+      id,
+      '\x1b]11;rgb:0000/0000/0000\x07\x1b]10;rgb:ffff/ffff/ffff\x1b\\',
+      1000
+    )
+    expect(isUserComposing(id, 1100)).toBe(false)
   })
 })

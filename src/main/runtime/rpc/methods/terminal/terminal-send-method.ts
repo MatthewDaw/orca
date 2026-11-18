@@ -70,7 +70,7 @@ export const TERMINAL_SEND_METHODS = [
       // Why: a stale handle must fail with terminal_handle_stale, not evaluate driver/lock state against the wrong PTY (#7718).
       const leaf = runtime.resolveLiveLeafForHandle(params.terminal)
       const driver = leaf?.ptyId ? runtime.getDriver(leaf.ptyId) : null
-      const deferred = deferSendWhileUserComposes(runtime, params, leaf?.ptyId)
+      const deferred = await deferSendWhileUserComposes(runtime, params, leaf?.ptyId)
       if (deferred) {
         return deferred
       }

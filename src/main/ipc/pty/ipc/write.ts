@@ -3,21 +3,30 @@ import { getPtyIpc } from '../../pty-host-bindings'
 import type { OrcaRuntimeService } from '../../../runtime/orca-runtime'
 import { createPtyWriteInput } from './write-input'
 import {
-  ctrlCClearsDraftInstead,
-  recordHumanTerminalInput
+  isLoneCtrlC,
+  recordHumanTerminalInput,
+  resolveCtrlCForDraft
 } from '../../../runtime/terminal-human-draft'
 
 // Why: in Claude and Codex, Ctrl+C with text in the box should only empty the box, but the same
-// key interrupts a running task or subagent. With text typed it becomes the keys that clear the
-// box; with none it goes through as Ctrl+C.
-function protectDraftFromCtrlC<T extends { id: string; data: string; inputKind: string }>(
+// key interrupts a running task or subagent. The screen says whether the box has text: with text
+// it becomes the keys that clear the box; with none it goes through as Ctrl+C.
+function needsDraftCheck(
   runtime: OrcaRuntimeService | undefined,
+  args: { id: string; data: string; inputKind: string }
+): runtime is OrcaRuntimeService {
+  return (
+    args.inputKind === 'driving' && isLoneCtrlC(args.data) && Boolean(runtime?.isAgentPty(args.id))
+  )
+}
+
+async function protectDraftFromCtrlC<T extends { id: string; data: string }>(
+  runtime: OrcaRuntimeService,
   args: T
-): T {
-  if (args.inputKind !== 'driving' || !runtime?.isAgentPty(args.id)) {
-    return args
-  }
-  const clear = ctrlCClearsDraftInstead(args.id, args.data)
+): Promise<T> {
+  const clear = await resolveCtrlCForDraft(args.id, args.data, (id) =>
+    runtime.readComposerDraft(id)
+  )
   return clear === null ? args : { ...args, data: clear }
 }
 
@@ -37,34 +46,70 @@ export function installPtyWriteIpcHandlers(deps: {
 
   const hostViewportClaimTails = new Map<string, Promise<boolean>>()
 
+  // Why: only a Ctrl+C waits on the screen check; keys typed behind it queue after it so the
+  // terminal never sees them out of order.
+  const writesInFlight = new Map<string, Promise<unknown>>()
+  function routeWrite<P extends { id: string; data: string; inputKind: string }>(
+    payload: P,
+    write: (args: P) => boolean | Promise<boolean>
+  ): boolean | Promise<boolean> {
+    const send = (args: P): boolean | Promise<boolean> => {
+      if (payload.inputKind === 'driving') {
+        recordHumanTerminalInput(payload.id, payload.data)
+      }
+      return write(args)
+    }
+    const pending = writesInFlight.get(payload.id)
+    if (!pending && !needsDraftCheck(runtime, payload)) {
+      return send(payload)
+    }
+    const run = (pending ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(
+        async () =>
+          await send(
+            needsDraftCheck(runtime, payload)
+              ? await protectDraftFromCtrlC(runtime, payload)
+              : payload
+          )
+      )
+    writesInFlight.set(payload.id, run)
+    void run
+      .catch(() => undefined)
+      .finally(() => {
+        if (writesInFlight.get(payload.id) === run) {
+          writesInFlight.delete(payload.id)
+        }
+      })
+    return run
+  }
+
   ipcMain.on('pty:write', (event, payload: unknown) => {
     if (!isPtyWriteEventFromMainWindow(event) || !isPtyWritePayload(payload)) {
       return
     }
-    // Why: the draft count is read before the keystroke is recorded, which would reset it.
-    const args = protectDraftFromCtrlC(runtime, payload)
-    if (payload.inputKind === 'driving') {
-      recordHumanTerminalInput(payload.id, payload.data)
-    }
-    const claimTail = hostViewportClaimTails.get(args.id)
-    if (claimTail) {
-      void claimTail.then((claimed) => (claimed ? writePtyInput(args) : false))
-      return
-    }
-    writePtyInput(args)
+    void Promise.resolve(
+      routeWrite(payload, (args) => {
+        const claimTail = hostViewportClaimTails.get(args.id)
+        if (claimTail) {
+          void claimTail.then((claimed) => (claimed ? writePtyInput(args) : false))
+          return true
+        }
+        writePtyInput(args)
+        return true
+      })
+    ).catch(() => undefined)
   })
   ipcMain.handle('pty:writeAccepted', (event, payload: unknown): boolean | Promise<boolean> => {
     if (!isPtyWriteEventFromMainWindow(event) || !isPtyWritePayload(payload)) {
       return false
     }
-    const args = protectDraftFromCtrlC(runtime, payload)
-    if (payload.inputKind === 'driving') {
-      recordHumanTerminalInput(payload.id, payload.data)
-    }
-    const claimTail = hostViewportClaimTails.get(args.id)
-    return claimTail
-      ? claimTail.then((claimed) => (claimed ? writePtyInputAccepted(args) : false))
-      : writePtyInputAccepted(args)
+    return routeWrite(payload, (args) => {
+      const claimTail = hostViewportClaimTails.get(args.id)
+      return claimTail
+        ? claimTail.then((claimed) => (claimed ? writePtyInputAccepted(args) : false))
+        : writePtyInputAccepted(args)
+    })
   })
 
   ipcMain.removeAllListeners('pty:claimViewport')

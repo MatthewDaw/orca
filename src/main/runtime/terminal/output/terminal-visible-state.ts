@@ -37,6 +37,12 @@ export abstract class OrcaRuntimeWithVisibleSnapshotPreview extends OrcaRuntimeW
     return projection.lines.length > 0 ? buildPreview(projection.lines, '') : preview
   }
 
+  /** The text in the agent's input box as painted now; null when this runtime has no screen for it. */
+  async readComposerDraft(ptyId: string): Promise<string | null> {
+    const state = await this.readHeadlessVisibleTerminalState(ptyId)
+    return state ? (state.draft ?? '') : null
+  }
+
   protected async readVisibleTerminalState(
     ptyId: string
   ): Promise<RuntimeVisibleTerminalState | null> {

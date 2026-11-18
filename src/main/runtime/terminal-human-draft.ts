@@ -1,5 +1,10 @@
-// Tracks whether a person has an unsent draft in a terminal, from the keystrokes the app window
-// writes to it, so programmatic messages can wait instead of landing inside what they are typing.
+// Decides whether a person has an unsent draft in a terminal, so programmatic messages can wait
+// instead of landing inside what they are typing. The rule is one line: the input box holds a
+// non-whitespace character. The terminal screen is the truth; the keystroke tally below only
+// stands in when no screen is readable.
+
+/** The text in the agent's input box right now; null when no screen can be read. */
+export type ComposerDraftReader = (ptyId: string) => Promise<string | null>
 
 // A draft untouched this long is treated as abandoned, so a forgotten half-line cannot block
 // delivery forever.
@@ -35,6 +40,8 @@ function decodeKittyKeys(data: string): string {
     .replace(KITTY_BACKSPACE, '\x7f')
 }
 
+const STRING_INTRODUCERS = [']', 'P', '_', '^', 'X']
+
 // Escape sequences (arrows, focus reports, bracketed-paste markers) are not draft content.
 function stripEscapeSequences(data: string): string {
   let out = ''
@@ -44,6 +51,16 @@ function stripEscapeSequences(data: string): string {
     } else if (data[i + 1] === '[') {
       i += 2
       while (i < data.length && !(data[i]! >= '@' && data[i]! <= '~')) {
+        i += 1
+      }
+    } else if (STRING_INTRODUCERS.includes(data[i + 1] ?? '')) {
+      // Why: terminal replies (colour queries and the like) are strings ended by BEL or ESC \;
+      // their payload is not typing.
+      i += 2
+      while (i < data.length && data[i] !== '\x07' && !(data[i] === ESC && data[i + 1] === '\\')) {
+        i += 1
+      }
+      if (data[i] === ESC) {
         i += 1
       }
     } else {
@@ -108,21 +125,44 @@ const MAX_CLEARED_LINES = 50
 // subagent. Null when the key should go through untouched (nothing typed, or not a lone Ctrl+C).
 // Each line is cleared with end-of-line then kill-to-line-start, and Backspace joins it to the one
 // above; a surplus Backspace on an empty box does nothing.
+const FULL_CLEAR = Array.from({ length: MAX_CLEARED_LINES }, () => '\x05\x15').join('\x7f')
+
+export function isLoneCtrlC(data: string): boolean {
+  return data === CTRL_C || data === KITTY_CTRL_C
+}
+
+// Keystroke-tally fallback, used only when no screen can be read.
 export function ctrlCClearsDraftInstead(
   ptyId: string,
   data: string,
   now = Date.now()
 ): string | null {
   const state = drafts.get(ptyId)
-  if ((data !== CTRL_C && data !== KITTY_CTRL_C) || !state) {
+  if (!isLoneCtrlC(data) || !state) {
     return null
   }
   if (state.chars === 0 || state.submitted || now - state.lastInputAt >= DRAFT_ABANDONED_AFTER_MS) {
     return null
   }
-  // Why the full budget: the tracked line count misses edits it cannot follow (history recall,
-  // cursor moves), and a surplus Backspace on an empty box is a no-op, so over-clearing is safe.
-  return Array.from({ length: MAX_CLEARED_LINES }, () => '\x05\x15').join('\x7f')
+  // Why the full budget: the tally misses edits it cannot follow (history recall, cursor moves),
+  // and a surplus Backspace on an empty box is a no-op, so over-clearing is safe.
+  return FULL_CLEAR
+}
+
+/** The keys to write instead of this Ctrl+C: a clear when the box has text, else null (send it). */
+export async function resolveCtrlCForDraft(
+  ptyId: string,
+  data: string,
+  readDraft: ComposerDraftReader
+): Promise<string | null> {
+  if (!isLoneCtrlC(data)) {
+    return null
+  }
+  const onScreen = await readDraft(ptyId).catch(() => null)
+  if (onScreen === null) {
+    return ctrlCClearsDraftInstead(ptyId, data)
+  }
+  return onScreen.trim() ? FULL_CLEAR : null
 }
 
 export function isUserComposing(ptyId: string, now = Date.now()): boolean {
@@ -141,14 +181,28 @@ export function forgetTerminalDraft(ptyId: string): void {
   drafts.delete(ptyId)
 }
 
-// Resolves once the person has sent or cleared their draft (or abandoned it). Polls only while a
-// message is actually waiting, never at idle.
+/** Whether the input box holds anything but whitespace; the screen decides when it can be read. */
+export async function isComposerNonEmpty(
+  ptyId: string,
+  readDraft?: ComposerDraftReader
+): Promise<boolean> {
+  const onScreen = readDraft ? await readDraft(ptyId).catch(() => null) : null
+  return onScreen === null ? isUserComposing(ptyId) : onScreen.trim().length > 0
+}
+
+// Resolves once the input box is empty again (or the wait ran out). Polls only while a message is
+// actually waiting, never at idle.
 export async function waitUntilUserStopsComposing(
   ptyId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  readDraft?: ComposerDraftReader
 ): Promise<void> {
   const deadline = Date.now() + MAX_DEFER_MS
-  while (isUserComposing(ptyId) && Date.now() < deadline && !signal?.aborted) {
+  while (
+    (await isComposerNonEmpty(ptyId, readDraft)) &&
+    Date.now() < deadline &&
+    !signal?.aborted
+  ) {
     await new Promise((resolve) => setTimeout(resolve, POLL_MS))
   }
 }
