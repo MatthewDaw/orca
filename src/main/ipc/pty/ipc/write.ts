@@ -10,25 +10,30 @@ import {
 
 // Why: in Claude and Codex, Ctrl+C with text in the box should only empty the box, but the same
 // key interrupts a running task or subagent. The screen says whether the box has text: with text
-// it becomes the keys that clear the box; with none it goes through as Ctrl+C.
+// it becomes the keys that clear the box; with none it goes through as Ctrl+C. The screen is
+// checked even before Orca has recognised the agent (restored terminals), since only an agent's
+// input box can match.
 function needsDraftCheck(
   runtime: OrcaRuntimeService | undefined,
   args: { id: string; data: string; inputKind: string }
 ): runtime is OrcaRuntimeService {
-  return (
-    args.inputKind === 'driving' && isLoneCtrlC(args.data) && Boolean(runtime?.isAgentPty(args.id))
-  )
+  return Boolean(runtime) && args.inputKind === 'driving' && isLoneCtrlC(args.data)
 }
 
 async function protectDraftFromCtrlC<T extends { id: string; data: string }>(
   runtime: OrcaRuntimeService,
   args: T
 ): Promise<T> {
-  const clear = await resolveCtrlCForDraft(args.id, args.data, (id) =>
-    runtime.readComposerDraft(id)
+  const clear = await resolveCtrlCForDraft(
+    args.id,
+    args.data,
+    (id) => runtime.readComposerDraft(id),
+    runtime.isAgentPty(args.id)
   )
   return clear === null ? args : { ...args, data: clear }
 }
+
+const KEY_GAP_MS = 3
 
 export function installPtyWriteIpcHandlers(deps: {
   mainWindow?: PtyRendererDelivery
@@ -53,11 +58,21 @@ export function installPtyWriteIpcHandlers(deps: {
     payload: P,
     write: (args: P) => boolean | Promise<boolean>
   ): boolean | Promise<boolean> {
-    const send = (args: P): boolean | Promise<boolean> => {
+    const send = async (args: P): Promise<boolean> => {
       if (payload.inputKind === 'driving') {
         recordHumanTerminalInput(payload.id, payload.data)
       }
-      return write(args)
+      if (args.data === payload.data || args.data.length < 2) {
+        return write(args)
+      }
+      // Why: the clear keys go one at a time; arriving as a single burst, the TUI reads them as
+      // pasted text and its box stops matching what is on screen.
+      let accepted = true
+      for (const key of args.data) {
+        accepted = (await write({ ...args, data: key })) && accepted
+        await new Promise((resolve) => setTimeout(resolve, KEY_GAP_MS))
+      }
+      return accepted
     }
     const pending = writesInFlight.get(payload.id)
     if (!pending && !needsDraftCheck(runtime, payload)) {

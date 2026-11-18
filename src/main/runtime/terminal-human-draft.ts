@@ -127,6 +127,13 @@ const MAX_CLEARED_LINES = 50
 // above; a surplus Backspace on an empty box does nothing.
 const FULL_CLEAR = Array.from({ length: MAX_CLEARED_LINES }, () => '\x05\x15').join('\x7f')
 
+// Why one spare line: wrapped rows can make the screen count one short, and a surplus is a no-op.
+function clearKeysForLines(lines: number): string {
+  return Array.from({ length: Math.min(MAX_CLEARED_LINES, lines + 1) }, () => '\x05\x15').join(
+    '\x7f'
+  )
+}
+
 export function isLoneCtrlC(data: string): boolean {
   return data === CTRL_C || data === KITTY_CTRL_C
 }
@@ -153,16 +160,17 @@ export function ctrlCClearsDraftInstead(
 export async function resolveCtrlCForDraft(
   ptyId: string,
   data: string,
-  readDraft: ComposerDraftReader
+  readDraft: ComposerDraftReader,
+  tallyFallback = true
 ): Promise<string | null> {
   if (!isLoneCtrlC(data)) {
     return null
   }
   const onScreen = await readDraft(ptyId).catch(() => null)
   if (onScreen === null) {
-    return ctrlCClearsDraftInstead(ptyId, data)
+    return tallyFallback ? ctrlCClearsDraftInstead(ptyId, data) : null
   }
-  return onScreen.trim() ? FULL_CLEAR : null
+  return onScreen.trim() ? clearKeysForLines(onScreen.split('\n').length) : null
 }
 
 export function isUserComposing(ptyId: string, now = Date.now()): boolean {

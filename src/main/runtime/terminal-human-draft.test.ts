@@ -142,7 +142,7 @@ describe('terminal human draft', () => {
 
     it('Ctrl+C clears a box that has text even if the tally missed it', async () => {
       forgetTerminalDraft(id)
-      expect(await resolveCtrlCForDraft(id, '\x03', screen('hello'))).toBe(FULL_CLEAR)
+      expect(await resolveCtrlCForDraft(id, '\x03', screen('hello'))).toBe('\x05\x15\x7f\x05\x15')
     })
 
     it('leaves other keys alone', async () => {
