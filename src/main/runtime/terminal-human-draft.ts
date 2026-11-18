@@ -156,21 +156,38 @@ export function ctrlCClearsDraftInstead(
   return FULL_CLEAR
 }
 
-/** The keys to write instead of this Ctrl+C: a clear when the box has text, else null (send it). */
+export const SWALLOW_KEY = ''
+const CTRL_X = '\x18'
+const ESCAPE = '\x1b'
+
+/**
+ * What to write for a Ctrl+C in an agent terminal: Ctrl+C only ever clears the input box.
+ * Keys that clear it when it holds text, SWALLOW_KEY (nothing) when it is empty, null to send the
+ * key unchanged (not an agent terminal, or not a lone Ctrl+C).
+ */
 export async function resolveCtrlCForDraft(
   ptyId: string,
   data: string,
   readDraft: ComposerDraftReader,
-  tallyFallback = true
+  isAgent = true
 ): Promise<string | null> {
   if (!isLoneCtrlC(data)) {
     return null
   }
   const onScreen = await readDraft(ptyId).catch(() => null)
   if (onScreen === null) {
-    return tallyFallback ? ctrlCClearsDraftInstead(ptyId, data) : null
+    const clear = isAgent ? ctrlCClearsDraftInstead(ptyId, data) : null
+    return clear ?? (isAgent ? SWALLOW_KEY : null)
   }
-  return onScreen.trim() ? clearKeysForLines(onScreen.split('\n').length) : null
+  if (onScreen.trim()) {
+    return clearKeysForLines(onScreen.split('\n').length)
+  }
+  return isAgent ? SWALLOW_KEY : null
+}
+
+/** Ctrl+X in an agent terminal is its interrupt: Escape stops the running turn, not subagents. */
+export function interruptKeyFor(data: string): string | null {
+  return data === CTRL_X ? ESCAPE : null
 }
 
 export function isUserComposing(ptyId: string, now = Date.now()): boolean {

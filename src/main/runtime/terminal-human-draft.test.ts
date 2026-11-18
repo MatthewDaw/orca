@@ -5,6 +5,7 @@ import {
   ctrlCClearsDraftInstead,
   forgetTerminalDraft,
   isComposerNonEmpty,
+  interruptKeyFor,
   isUserComposing,
   recordHumanTerminalInput,
   resolveCtrlCForDraft
@@ -133,16 +134,27 @@ describe('terminal human draft', () => {
       expect(await isComposerNonEmpty(id, screen(null))).toBe(false)
     })
 
-    it('Ctrl+C on an empty box goes straight through even if the tally says text', async () => {
+    it('Ctrl+C on an empty box does nothing even if the tally says text', async () => {
       forgetTerminalDraft(id)
       recordHumanTerminalInput(id, 'phantom', Date.now())
-      expect(await resolveCtrlCForDraft(id, '\x03', screen(''))).toBeNull()
-      expect(await resolveCtrlCForDraft(id, '\x03', screen(' '))).toBeNull()
+      expect(await resolveCtrlCForDraft(id, '\x03', screen(''))).toBe('')
+      expect(await resolveCtrlCForDraft(id, '\x03', screen(' '))).toBe('')
     })
 
     it('Ctrl+C clears a box that has text even if the tally missed it', async () => {
       forgetTerminalDraft(id)
       expect(await resolveCtrlCForDraft(id, '\x03', screen('hello'))).toBe('\x05\x15\x7f\x05\x15')
+    })
+
+    it('Ctrl+C on an empty agent box does nothing, but still reaches a plain shell', async () => {
+      forgetTerminalDraft(id)
+      expect(await resolveCtrlCForDraft(id, '\x03', screen(''))).toBe('')
+      expect(await resolveCtrlCForDraft(id, '\x03', screen(''), false)).toBeNull()
+    })
+
+    it('Ctrl+X becomes Escape', () => {
+      expect(interruptKeyFor('\x18')).toBe('\x1b')
+      expect(interruptKeyFor('x')).toBeNull()
     })
 
     it('leaves other keys alone', async () => {

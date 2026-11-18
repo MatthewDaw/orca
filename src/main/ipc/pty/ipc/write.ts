@@ -3,32 +3,40 @@ import { getPtyIpc } from '../../pty-host-bindings'
 import type { OrcaRuntimeService } from '../../../runtime/orca-runtime'
 import { createPtyWriteInput } from './write-input'
 import {
+  interruptKeyFor,
   isLoneCtrlC,
   recordHumanTerminalInput,
   resolveCtrlCForDraft
 } from '../../../runtime/terminal-human-draft'
 
-// Why: in Claude and Codex, Ctrl+C with text in the box should only empty the box, but the same
-// key interrupts a running task or subagent. The screen says whether the box has text: with text
-// it becomes the keys that clear the box; with none it goes through as Ctrl+C. The screen is
-// checked even before Orca has recognised the agent (restored terminals), since only an agent's
-// input box can match.
-function needsDraftCheck(
+// Why: in Claude and Codex, Ctrl+C only clears the input box (it never interrupts), and Ctrl+X
+// is the interrupt, sent as Escape so it stops the running turn but not subagents. The screen
+// says whether the box has text. Terminals Orca has not recognised as agents keep plain Ctrl+C.
+function needsKeyRewrite(
   runtime: OrcaRuntimeService | undefined,
   args: { id: string; data: string; inputKind: string }
 ): runtime is OrcaRuntimeService {
-  return Boolean(runtime) && args.inputKind === 'driving' && isLoneCtrlC(args.data)
+  return (
+    Boolean(runtime) &&
+    args.inputKind === 'driving' &&
+    (isLoneCtrlC(args.data) || interruptKeyFor(args.data) !== null)
+  )
 }
 
-async function protectDraftFromCtrlC<T extends { id: string; data: string }>(
+async function rewriteAgentKey<T extends { id: string; data: string }>(
   runtime: OrcaRuntimeService,
   args: T
 ): Promise<T> {
+  const isAgent = runtime.isAgentPty(args.id)
+  const interrupt = interruptKeyFor(args.data)
+  if (interrupt !== null) {
+    return isAgent ? { ...args, data: interrupt } : args
+  }
   const clear = await resolveCtrlCForDraft(
     args.id,
     args.data,
     (id) => runtime.readComposerDraft(id),
-    runtime.isAgentPty(args.id)
+    isAgent
   )
   return clear === null ? args : { ...args, data: clear }
 }
@@ -62,6 +70,9 @@ export function installPtyWriteIpcHandlers(deps: {
       if (payload.inputKind === 'driving') {
         recordHumanTerminalInput(payload.id, payload.data)
       }
+      if (args.data === '') {
+        return true
+      }
       if (args.data === payload.data || args.data.length < 2) {
         return write(args)
       }
@@ -75,7 +86,7 @@ export function installPtyWriteIpcHandlers(deps: {
       return accepted
     }
     const pending = writesInFlight.get(payload.id)
-    if (!pending && !needsDraftCheck(runtime, payload)) {
+    if (!pending && !needsKeyRewrite(runtime, payload)) {
       return send(payload)
     }
     const run = (pending ?? Promise.resolve())
@@ -83,9 +94,7 @@ export function installPtyWriteIpcHandlers(deps: {
       .then(
         async () =>
           await send(
-            needsDraftCheck(runtime, payload)
-              ? await protectDraftFromCtrlC(runtime, payload)
-              : payload
+            needsKeyRewrite(runtime, payload) ? await rewriteAgentKey(runtime, payload) : payload
           )
       )
     writesInFlight.set(payload.id, run)
