@@ -25,6 +25,11 @@ export const ptyStreamAndSerializationApi = {
     ipcRenderer.invoke('pty:disableCodexSharedServerAutoStart', { id }),
   stopCodexSharedServer: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('pty:stopCodexSharedServer', { id }),
+  codexConversationLock: (
+    id: string,
+    release?: boolean
+  ): Promise<{ locked: boolean; holders: number }> =>
+    ipcRenderer.invoke('pty:codexConversationLock', { id, release }),
   openedBeforeClaudeAccounts: (
     id: string,
     target: { runtime: 'host' } | { runtime: 'wsl'; wslDistro: string }

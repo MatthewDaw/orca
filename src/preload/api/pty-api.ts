@@ -159,6 +159,11 @@ export type PtyApi = {
   /** Runs the fix with the pane's own Codex; true only once verified. Local panes only. */
   disableCodexSharedServerAutoStart: (id: string) => Promise<boolean>
   stopCodexSharedServer: (id: string) => Promise<boolean>
+  /** Whether this Codex pane is refused because another process has its conversation open; release stops that process. */
+  codexConversationLock: (
+    id: string,
+    release?: boolean
+  ) => Promise<{ locked: boolean; holders: number }>
   /** True only for local panes missing the daemon claude function and using a deselected account. */
   openedBeforeClaudeAccounts: (
     id: string,
